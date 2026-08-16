@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/geometry" },
+    { "path": "packages/object-generator" },
+    { "path": "packages/svg" },
+    { "path": "packages/pat-aperture" },
+    { "path": "packages/pat-view-recognition" },
+    { "path": "packages/pat-angle" },
+    { "path": "packages/pat-paper-folding" },
+    { "path": "packages/pat-cube-counting" },
+    { "path": "packages/pat-form-development" },
+    { "path": "packages/question-bank" },
+    { "path": "packages/cli" },
+    { "path": "packages/renderer-three" }
+  ]
+}

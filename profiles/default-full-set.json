@@ -1,0 +1,11 @@
+{
+  "name": "default-full-set",
+  "categories": {
+    "aperture": 15,
+    "view-recognition": 15,
+    "angle": 15,
+    "paper-folding": 15,
+    "cube-counting": 15,
+    "form-development": 15
+  }
+}

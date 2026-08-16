@@ -1,0 +1,42 @@
+{
+  "cube": [
+    { "viewFingerprint": "6bfad0ecfbe2a185", "svgFingerprint": "eb5b3dc4ac169ca5" },
+    { "viewFingerprint": "e029ca443b8c2ec5", "svgFingerprint": "3971b6d12e5878ab" },
+    { "viewFingerprint": "ecc7f266ede37849", "svgFingerprint": "7598663b2268e66d" }
+  ],
+  "stepped-block": [
+    { "viewFingerprint": "e22680da3385da1b", "svgFingerprint": "46afd13501ae79dd" },
+    { "viewFingerprint": "c856cd8a84728edf", "svgFingerprint": "2c8be99ba8454dab" },
+    { "viewFingerprint": "77435d37c5fdc68f", "svgFingerprint": "351247dba699ac37" }
+  ],
+  "through-hole-block": [
+    { "viewFingerprint": "e2e5d7f877dbef01", "svgFingerprint": "15b270c40f1b34aa" },
+    { "viewFingerprint": "b5bd50e64e02ebab", "svgFingerprint": "197c50f2ab231fe3" },
+    { "viewFingerprint": "8fd87ee605abe815", "svgFingerprint": "ae277ce79dc4d072" }
+  ],
+  "slotted-block": [
+    { "viewFingerprint": "fcc3b8c3fa54d6e7", "svgFingerprint": "92be062d5178d2fb" },
+    { "viewFingerprint": "a65ee92d5e9e504d", "svgFingerprint": "0d54941756aeb342" },
+    { "viewFingerprint": "b70aab46c296a9f3", "svgFingerprint": "46c6e4096ec30b90" }
+  ],
+  "wedge": [
+    { "viewFingerprint": "a423bac96ad0396f", "svgFingerprint": "68f941b08b77de87" },
+    { "viewFingerprint": "d641371169f23e75", "svgFingerprint": "21bbc0d3bd5ead6a" },
+    { "viewFingerprint": "28293c3c3ec3f12f", "svgFingerprint": "2d378b3d2716d767" }
+  ],
+  "cylinder-on-block": [
+    { "viewFingerprint": "7a62df0d2765c1e3", "svgFingerprint": "e403646cf2f27ac6" },
+    { "viewFingerprint": "0a2b66dd53e283f8", "svgFingerprint": "b60eb00b0d958828" },
+    { "viewFingerprint": "1938f3bd4e0b5ce7", "svgFingerprint": "4772e0af48566a48" }
+  ],
+  "compound-notch": [
+    { "viewFingerprint": "c0e0be0740a378e9", "svgFingerprint": "d80b981471978884" },
+    { "viewFingerprint": "bd6805848bac0006", "svgFingerprint": "7e2f0182295beb81" },
+    { "viewFingerprint": "913051b7b540a9e7", "svgFingerprint": "1fdc9558d1b48630" }
+  ],
+  "blind-recess": [
+    { "viewFingerprint": "501b7f0e09e3ae47", "svgFingerprint": "59f28155a11ce01f" },
+    { "viewFingerprint": "5389593688b638e1", "svgFingerprint": "a63c0944c65f0c67" },
+    { "viewFingerprint": "d69378062e365f43", "svgFingerprint": "0dbaaa5db4cd7f79" }
+  ]
+}

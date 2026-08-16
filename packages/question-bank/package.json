@@ -1,0 +1,18 @@
+{
+  "name": "@manipat/question-bank",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -b", "test": "vitest run" },
+  "dependencies": {
+    "@manipat/core": "workspace:*",
+    "@manipat/geometry": "workspace:*",
+    "@manipat/pat-angle": "workspace:*",
+    "@manipat/pat-aperture": "workspace:*",
+    "@manipat/pat-cube-counting": "workspace:*",
+    "@manipat/pat-form-development": "workspace:*",
+    "@manipat/pat-paper-folding": "workspace:*",
+    "@manipat/pat-view-recognition": "workspace:*"
+  }
+}

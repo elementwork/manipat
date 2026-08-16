@@ -1,0 +1,20 @@
+{
+  "name": "@manipat/geometry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@manipat/core": "workspace:*",
+    "manifold-3d": "3.5.1"
+  }
+}

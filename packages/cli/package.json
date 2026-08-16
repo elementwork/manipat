@@ -1,0 +1,15 @@
+{
+  "name": "@manipat/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "dat-pat": "./dist/index.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -b", "test": "vitest run" },
+  "dependencies": {
+    "@manipat/core": "workspace:*",
+    "@manipat/geometry": "workspace:*",
+    "@manipat/question-bank": "workspace:*",
+    "@manipat/renderer-three": "workspace:*"
+  }
+}
