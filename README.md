@@ -23,9 +23,7 @@ pnpm dat validate ./output/exam-001.html
 pnpm dat inspect ./output/exam-001.html --output ./output/exam-001-inspect.html
 ```
 
-`generate` writes one portable HTML document containing all question data, SVG artwork,
-answers, explanations, styles, and browser-side controls. Open it locally to work through
-the exam, reveal a score and solutions, or print questions, answers, or both to PDF.
+`generate set` writes one portable, Letter-sized printable HTML exam containing the full PAT set, embedded SVG artwork and question data. The document includes a cover page, section directions, deterministic page breaks, shared Cube Counting figures, and a separate answer sheet. Open the HTML locally and use the browser's Print command to print it directly or save it as PDF.
 
 Use `--workers 2` (up to six is useful for mixed sets) to give each category an isolated Manifold worker context. `--quiet` suppresses progress and `--json-progress` emits machine-readable statistics. Set `DEBUG_PAT_SEED=<seed>` to reproduce a root generation seed.
 

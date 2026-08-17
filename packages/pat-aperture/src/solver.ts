@@ -38,14 +38,17 @@ const pointInPolygon = (
   return inside;
 };
 
-/** Initial containment check; exact matching remains the default generation mode. */
+/**
+ * Tests whether every projected component of an object is contained in the
+ * opening. Multi-component silhouettes are handled component-by-component.
+ */
 export const apertureContains = (
   opening: CanonicalSection2D,
   projectedObject: CanonicalSection2D,
   tolerance = EPS.projection,
 ): boolean => {
-  const openingPolygon = opening.polygons[0];
-  const objectPolygon = projectedObject.polygons[0];
-  if (openingPolygon === undefined || objectPolygon === undefined) return false;
-  return objectPolygon.every((point) => pointInPolygon(point, openingPolygon, tolerance));
+  if (opening.polygons.length === 0 || projectedObject.polygons.length === 0) return false;
+  return projectedObject.polygons.every((objectPolygon) =>
+    objectPolygon.every((point) =>
+      opening.polygons.some((openingPolygon) => pointInPolygon(point, openingPolygon, tolerance))));
 };

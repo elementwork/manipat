@@ -84,9 +84,13 @@ export const generateBatch = async (
       const acceptedBefore = accepted;
       attempts += 1;
       try {
+        // Cube Counting questions are intentionally generated in groups of up
+        // to three sharing one figure. Preserve that DAT grouping for fixed,
+        // ranged, and mixed difficulty requests alike.
+        const maximumGroupCount = type === "cube-counting" ? requested - accepted : 1;
         const group = await engine.generateCandidateGroup(
           { type, seed: candidateSeed, difficulty },
-          typeof difficultyRequest === "number" ? requested - accepted : 1,
+          maximumGroupCount,
         );
         generated += group.length;
         for (const question of group) {

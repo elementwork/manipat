@@ -32,22 +32,23 @@ const renderElement = (node: SvgElement): string => {
   return `<${node.tag}${attributes}>${children}</${node.tag}>`;
 };
 
-/** Serializes a deterministic, accessible SVG document. */
+/**
+ * Serializes a deterministic, accessible SVG document.
+ *
+ * The root uses aria-label instead of document-global title/description IDs.
+ * PAT exams embed dozens of standalone SVGs into one HTML document, and fixed
+ * IDs such as `svg-title` become duplicate DOM IDs after composition.
+ */
 export const svgDocument = (options: SvgDocumentOptions): string => {
-  const titleId = "svg-title";
-  const descriptionId = options.description === undefined ? undefined : "svg-description";
-  const labelledBy = descriptionId === undefined ? titleId : `${titleId} ${descriptionId}`;
-  const metadata: SvgElement[] = [
-    createSvgElement("title", { id: titleId }, [options.title]),
-  ];
+  const metadata: SvgElement[] = [createSvgElement("title", {}, [options.title])];
   if (options.description !== undefined) {
-    metadata.push(
-      createSvgElement("desc", { id: descriptionId }, [options.description]),
-    );
+    metadata.push(createSvgElement("desc", {}, [options.description]));
   }
   const root = createSvgElement("svg", {
     ...options.attributes,
-    "aria-labelledby": labelledBy,
+    "aria-label": options.description === undefined
+      ? options.title
+      : `${options.title}. ${options.description}`,
     role: "img",
     viewBox: options.viewBox.join(" "),
     xmlns: "http://www.w3.org/2000/svg",

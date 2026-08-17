@@ -10,12 +10,13 @@ import { measureAngleDegrees, rankAngles } from "./solver.js";
 import type { AngleChoice, AngleItem, AngleQuestion } from "./types.js";
 import { validateAngleQuestion } from "./validator.js";
 
+/** Minimum adjacent separation in degrees for printable DAT-like material. */
 const MINIMUM_GAP: Readonly<Record<1 | 2 | 3 | 4 | 5, number>> = {
-  1: 8,
-  2: 4,
-  3: 2.5,
-  4: 1.25,
-  5: 0.5,
+  1: 9,
+  2: 6,
+  3: 4,
+  4: 3,
+  5: 2,
 };
 
 const endpoint = (vertex: Vec2, degrees: number, length: number): Vec2 => {
@@ -34,9 +35,18 @@ export const generateAngleQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): AngleQuestion => {
   const random = createRandomSource(seed);
-  const gap = MINIMUM_GAP[difficulty] + random.fork("angles").float(0.05, MINIMUM_GAP[difficulty] * 0.3);
-  const start = random.fork("angles-start").float(24, 118 - gap * 3);
-  const measures = Array.from({ length: 4 }, (_, index) => start + gap * index);
+  const minimumGap = MINIMUM_GAP[difficulty];
+  // Independent adjacent gaps avoid the artificial arithmetic-progression cue.
+  const gapRandom = random.fork("angle-gaps");
+  const gaps = Array.from({ length: 3 }, () => minimumGap * gapRandom.float(1, 1.45));
+  const totalSpread = gaps.reduce((sum, value) => sum + value, 0);
+  const start = random.fork("angles-start").float(24, Math.max(25, 118 - totalSpread));
+  const measures = [
+    start,
+    start + gaps[0]!,
+    start + gaps[0]! + gaps[1]!,
+    start + totalSpread,
+  ];
   const shuffledMeasures = random.fork("item-order").shuffle(measures);
   const positions = [[60, 55], [180, 55], [60, 150], [180, 150]] as const;
   const items: AngleItem[] = shuffledMeasures.map((angleDegrees, index) => {
@@ -68,6 +78,7 @@ export const generateAngleQuestion = (
   const correctChoiceIndex = choices.findIndex(({ order }) =>
     order.every((id, index) => id === correctOrder[index]));
   const itemFingerprint = fingerprint64(canonicalStringify(items as unknown as JsonValue));
+  const actualMinimumGap = Math.min(...gaps);
   const base: AngleQuestion = {
     id: `angle-${itemFingerprint}`,
     engineVersion: "0.1.0",
@@ -84,14 +95,14 @@ export const generateAngleQuestion = (
       orderSmallestToLargest: correctOrder,
     },
     difficulty: {
-      raw: 1 / gap,
-      normalized: Math.min(1, 1 / gap),
+      raw: 1 / actualMinimumGap,
+      normalized: Math.min(1, 1 / actualMinimumGap),
       band: difficulty,
-      components: { minimumGapDegrees: gap },
+      components: { minimumGapDegrees: actualMinimumGap },
     },
     validation: { passed: false, checks: [] },
     fingerprints: { items: itemFingerprint },
-    metadata: { minimumGapDegrees: gap },
+    metadata: { minimumGapDegrees: actualMinimumGap },
   };
   const validation = validateAngleQuestion(base);
   if (!validation.passed) throw new Error("Generated angle question failed validation");
