@@ -8,19 +8,34 @@ const length3 = (a: Vec3, b: Vec3): number => Math.hypot(
   b[2] - a[2],
 );
 
-const sorted2dEdgeLengths = ({ polygon }: NetFace): readonly number[] =>
-  polygon.map((point, index) => length2(point, polygon[(index + 1) % polygon.length] ?? point))
-    .sort((a, b) => a - b);
+const sorted2dDistances = ({ polygon }: NetFace): readonly number[] => {
+  const distances: number[] = [];
+  for (let first = 0; first < polygon.length; first += 1) {
+    for (let second = first + 1; second < polygon.length; second += 1) {
+      distances.push(length2(polygon[first]!, polygon[second]!));
+    }
+  }
+  return distances.sort((a, b) => a - b);
+};
 
-const sorted3dEdgeLengths = (
+const sorted3dDistances = (
   face: PolyFace,
   vertices: readonly Vec3[],
-): readonly number[] => face.vertexIds.map((vertexId, index) => {
-  const nextId = face.vertexIds[(index + 1) % face.vertexIds.length];
-  const point = vertices[vertexId];
-  const next = nextId === undefined ? undefined : vertices[nextId];
-  return point === undefined || next === undefined ? Number.NaN : length3(point, next);
-}).sort((a, b) => a - b);
+): readonly number[] => {
+  const distances: number[] = [];
+  for (let first = 0; first < face.vertexIds.length; first += 1) {
+    for (let second = first + 1; second < face.vertexIds.length; second += 1) {
+      const firstVertex = vertices[face.vertexIds[first]!];
+      const secondVertex = vertices[face.vertexIds[second]!];
+      distances.push(
+        firstVertex === undefined || secondVertex === undefined
+          ? Number.NaN
+          : length3(firstVertex, secondVertex),
+      );
+    }
+  }
+  return distances.sort((a, b) => a - b);
+};
 
 const sameLength = (first: number, second: number): boolean => {
   const scale = Math.max(1, Math.abs(first), Math.abs(second));
@@ -32,8 +47,8 @@ const faceMatches = (
   face: PolyFace,
   vertices: readonly Vec3[],
 ): boolean => {
-  const expected = sorted2dEdgeLengths(netFace);
-  const actual = sorted3dEdgeLengths(face, vertices);
+  const expected = sorted2dDistances(netFace);
+  const actual = sorted3dDistances(face, vertices);
   return expected.length === actual.length
     && expected.every((value, index) => sameLength(value, actual[index] ?? Number.NaN));
 };
