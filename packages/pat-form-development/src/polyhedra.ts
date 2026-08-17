@@ -45,4 +45,48 @@ export const SQUARE_PYRAMID: LogicalPolyhedron = {
   ],
 };
 
-export const POLYHEDRA = [CUBE, TRIANGULAR_PRISM, SQUARE_PYRAMID] as const;
+/** A prism with a trapezoidal end profile: six faces with unequal slanted sides. */
+export const TRAPEZOIDAL_PRISM: LogicalPolyhedron = {
+  id: "trapezoidal-prism",
+  vertices: [
+    [-1.3, -1, -1], [1.3, -1, -1], [0.8, -1, 1], [-0.8, -1, 1],
+    [-1.3, 1, -1], [1.3, 1, -1], [0.8, 1, 1], [-0.8, 1, 1],
+  ],
+  faces: [
+    { id: "end-front", vertexIds: [0, 3, 2, 1] },
+    { id: "end-back", vertexIds: [4, 5, 6, 7] },
+    { id: "side-bottom", vertexIds: [0, 1, 5, 4] },
+    { id: "side-right", vertexIds: [1, 2, 6, 5] },
+    { id: "side-top", vertexIds: [2, 3, 7, 6] },
+    { id: "side-left", vertexIds: [3, 0, 4, 7] },
+  ],
+};
+
+/**
+ * Seven-face "house" prism. The pentagonal end profile gives the folded choices
+ * multiple sloped faces and roof angles, much closer to the irregular geometry
+ * used by the golden form-development examples.
+ */
+export const HOUSE_PRISM: LogicalPolyhedron = {
+  id: "house-prism",
+  vertices: [
+    [-1, -1, -1], [1, -1, -1], [1, -1, 0.2], [0, -1, 1.25], [-1, -1, 0.2],
+    [-1, 1, -1], [1, 1, -1], [1, 1, 0.2], [0, 1, 1.25], [-1, 1, 0.2],
+  ],
+  faces: [
+    { id: "end-front", vertexIds: [0, 4, 3, 2, 1] },
+    { id: "end-back", vertexIds: [5, 6, 7, 8, 9] },
+    { id: "side-bottom", vertexIds: [0, 1, 6, 5] },
+    { id: "side-right", vertexIds: [1, 2, 7, 6] },
+    { id: "roof-right", vertexIds: [2, 3, 8, 7] },
+    { id: "roof-left", vertexIds: [3, 4, 9, 8] },
+    { id: "side-left", vertexIds: [4, 0, 5, 9] },
+  ],
+};
+
+export const POLYHEDRA = [
+  TRIANGULAR_PRISM,
+  SQUARE_PYRAMID,
+  TRAPEZOIDAL_PRISM,
+  HOUSE_PRISM,
+] as const;
