@@ -55,9 +55,8 @@ export interface FormDevelopmentPrompt {
 
 export interface FormDevelopmentChoice {
   readonly polyhedronId: LogicalPolyhedron["id"];
-  /** Candidate folded geometry. Wrong answers deliberately violate face dimensions/angles from the net. */
-  readonly vertices: readonly Vec3[];
-  /** Retained for backwards-compatible rendering of older marked-face questions. */
+  /** Present on v2 dimensional-geometry choices; v1 marking questions omit it. */
+  readonly vertices?: readonly Vec3[];
   readonly patterns: Readonly<Record<string, FacePattern>>;
   readonly chirality: "original" | "mirrored";
   readonly fingerprint: string;
