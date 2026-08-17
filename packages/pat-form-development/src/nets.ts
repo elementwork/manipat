@@ -91,8 +91,18 @@ const prismDefinition = (polyhedron: LogicalPolyhedron): PrismNetDefinition | un
         frontFaceId: "end-front",
         backFaceId: "end-back",
       };
-    default:
-      return undefined;
+    default: {
+      if (!polyhedron.id.startsWith("profile-") || polyhedron.vertices.length % 2 !== 0) return undefined;
+      const count = polyhedron.vertices.length / 2;
+      if (count < 3) return undefined;
+      return {
+        profileVertexIds: Array.from({ length: count }, (_, index) => index),
+        backProfileVertexIds: Array.from({ length: count }, (_, index) => index + count),
+        sideFaceIds: Array.from({ length: count }, (_, index) => `side-${index}`),
+        frontFaceId: "end-front",
+        backFaceId: "end-back",
+      };
+    }
   }
 };
 
