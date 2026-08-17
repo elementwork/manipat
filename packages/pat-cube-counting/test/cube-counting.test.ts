@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   VoxelStructure,
   generateCubeCountingSet,
+  renderVoxelStructure,
   validateCubeCountingQuestion,
 } from "../src/index.js";
 
@@ -13,6 +14,13 @@ describe("cube counting", () => {
     single.add(0, 0, 1);
     expect(single.exposedFaceCount(0, 0, 0)).toBe(4);
     expect(single.exposedFaceCount(0, 0, 1)).toBe(5);
+  });
+
+  it("renders one cube as three closed camera-facing faces", () => {
+    const single = new VoxelStructure([{ x: 0, y: 0, z: 0 }]);
+    const svg = renderVoxelStructure(single);
+    expect(svg.match(/<polygon\b/gu)).toHaveLength(3);
+    expect(svg).toContain("Closed isometric stack");
   });
 
   it("generates sparse shared figures with three valid questions", () => {
