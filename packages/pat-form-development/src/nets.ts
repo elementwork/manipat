@@ -7,6 +7,12 @@ import type {
 } from "./types.js";
 
 const square = (x: number, y: number): readonly Vec2[] => [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
+const rectangle = (x0: number, y0: number, x1: number, y1: number): readonly Vec2[] => [
+  [x0, y0], [x1, y0], [x1, y1], [x0, y1],
+];
+
+const TRAPEZOID_SLANT = Math.sqrt(4.25);
+const HOUSE_ROOF = Math.hypot(1, 1.05);
 
 const NETS: Readonly<Record<LogicalPolyhedron["id"], PolyhedronNet>> = {
   cube: {
@@ -53,6 +59,44 @@ const NETS: Readonly<Record<LogicalPolyhedron["id"], PolyhedronNet>> = {
     connections: [
       { faceA: "base", faceB: "side-front" }, { faceA: "base", faceB: "side-right" },
       { faceA: "base", faceB: "side-back" }, { faceA: "base", faceB: "side-left" },
+    ],
+  },
+  "trapezoidal-prism": {
+    polyhedronId: "trapezoidal-prism",
+    faces: [
+      { faceId: "side-bottom", polygon: rectangle(0, 2.5, 2.6, 4.5) },
+      { faceId: "side-right", polygon: rectangle(2.6, 2.5, 2.6 + TRAPEZOID_SLANT, 4.5) },
+      { faceId: "side-top", polygon: rectangle(2.6 + TRAPEZOID_SLANT, 2.5, 4.2 + TRAPEZOID_SLANT, 4.5) },
+      { faceId: "side-left", polygon: rectangle(4.2 + TRAPEZOID_SLANT, 2.5, 4.2 + TRAPEZOID_SLANT * 2, 4.5) },
+      { faceId: "end-front", polygon: [[0, 2.5], [2.6, 2.5], [2.1, 0.5], [0.5, 0.5]] },
+      { faceId: "end-back", polygon: [[0, 4.5], [2.6, 4.5], [2.1, 6.5], [0.5, 6.5]] },
+    ],
+    connections: [
+      { faceA: "side-bottom", faceB: "side-right" },
+      { faceA: "side-right", faceB: "side-top" },
+      { faceA: "side-top", faceB: "side-left" },
+      { faceA: "side-bottom", faceB: "end-front" },
+      { faceA: "side-bottom", faceB: "end-back" },
+    ],
+  },
+  "house-prism": {
+    polyhedronId: "house-prism",
+    faces: [
+      { faceId: "side-bottom", polygon: rectangle(0, 3, 2, 5) },
+      { faceId: "side-right", polygon: rectangle(2, 3, 3.2, 5) },
+      { faceId: "roof-right", polygon: rectangle(3.2, 3, 3.2 + HOUSE_ROOF, 5) },
+      { faceId: "roof-left", polygon: rectangle(3.2 + HOUSE_ROOF, 3, 3.2 + HOUSE_ROOF * 2, 5) },
+      { faceId: "side-left", polygon: rectangle(3.2 + HOUSE_ROOF * 2, 3, 4.4 + HOUSE_ROOF * 2, 5) },
+      { faceId: "end-front", polygon: [[0, 3], [2, 3], [2, 1.8], [1, 0.75], [0, 1.8]] },
+      { faceId: "end-back", polygon: [[0, 5], [2, 5], [2, 6.2], [1, 7.25], [0, 6.2]] },
+    ],
+    connections: [
+      { faceA: "side-bottom", faceB: "side-right" },
+      { faceA: "side-right", faceB: "roof-right" },
+      { faceA: "roof-right", faceB: "roof-left" },
+      { faceA: "roof-left", faceB: "side-left" },
+      { faceA: "side-bottom", faceB: "end-front" },
+      { faceA: "side-bottom", faceB: "end-back" },
     ],
   },
 };
