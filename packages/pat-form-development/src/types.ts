@@ -18,7 +18,8 @@ export interface LogicalPolyhedron {
     | "triangular-prism"
     | "square-pyramid"
     | "trapezoidal-prism"
-    | "house-prism";
+    | "house-prism"
+    | `profile-${string}`;
   readonly vertices: readonly Vec3[];
   readonly faces: readonly PolyFace[];
 }
@@ -55,7 +56,7 @@ export interface FormDevelopmentPrompt {
 
 export interface FormDevelopmentChoice {
   readonly polyhedronId: LogicalPolyhedron["id"];
-  /** Present on v2 dimensional-geometry choices; v1 marking questions omit it. */
+  /** Present on v2/v3 dimensional-geometry choices; v1 marking questions omit it. */
   readonly vertices?: readonly Vec3[];
   /** Presentation-only rotation around the vertical axis; solver truth ignores it. */
   readonly viewQuarterTurns?: 0 | 1 | 2 | 3;
