@@ -17,6 +17,7 @@ import type {
 } from "./types.js";
 import { validateFormDevelopmentQuestion } from "./validator.js";
 
+const VIEW_TURNS: readonly (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
 const dimension = (value: number): number => Math.round(value * 1000) / 1000;
 
 const createQuestionPolyhedron = (random: RandomSource): LogicalPolyhedron => {
@@ -122,11 +123,13 @@ export const generateFormDevelopmentQuestion = (
     ...wrong,
   ];
   const shuffled = random.fork("choice-order").shuffle(raw);
+  const viewTurns = random.fork("choice-view-turns").shuffle(VIEW_TURNS);
   const choices: FormDevelopmentChoice[] = shuffled.map((candidate, index) => {
     const fingerprint = choiceFingerprint(polyhedron.id, candidate.vertices);
     const partial = {
       polyhedronId: polyhedron.id,
       vertices: candidate.vertices,
+      viewQuarterTurns: viewTurns[index] ?? 0,
       patterns,
       chirality: "original" as const,
       fingerprint,
@@ -174,6 +177,7 @@ export const generateFormDevelopmentQuestion = (
       polyhedronId: polyhedron.id,
       choiceModel: "dimensional-geometry-v2",
       geometryVariation: "continuous-parameters",
+      variedChoiceOrientations: true,
     },
   };
   const validation = validateFormDevelopmentQuestion(base);
