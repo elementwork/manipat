@@ -13,7 +13,12 @@ export interface PolyFace {
 }
 
 export interface LogicalPolyhedron {
-  readonly id: "cube" | "triangular-prism" | "square-pyramid";
+  readonly id:
+    | "cube"
+    | "triangular-prism"
+    | "square-pyramid"
+    | "trapezoidal-prism"
+    | "house-prism";
   readonly vertices: readonly Vec3[];
   readonly faces: readonly PolyFace[];
 }
@@ -50,6 +55,9 @@ export interface FormDevelopmentPrompt {
 
 export interface FormDevelopmentChoice {
   readonly polyhedronId: LogicalPolyhedron["id"];
+  /** Candidate folded geometry. Wrong answers deliberately violate face dimensions/angles from the net. */
+  readonly vertices: readonly Vec3[];
+  /** Retained for backwards-compatible rendering of older marked-face questions. */
   readonly patterns: Readonly<Record<string, FacePattern>>;
   readonly chirality: "original" | "mirrored";
   readonly fingerprint: string;
