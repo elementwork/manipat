@@ -19,7 +19,11 @@ import {
   type ProjectionFrame,
   type SolidHandle,
 } from "@manipat/geometry";
-import { APERTURE_COMPLEX_TEMPLATES, APERTURE_TEMPLATES } from "@manipat/object-generator";
+import {
+  APERTURE_COMPLEX_TEMPLATES,
+  APERTURE_FACETED_TEMPLATES,
+  APERTURE_TEMPLATES,
+} from "@manipat/object-generator";
 import { generateApertureDistractors } from "./distractors.js";
 import {
   renderApertureChoice,
@@ -47,6 +51,10 @@ const PRINCIPAL_ORIENTATIONS: readonly Vec3[] = [
   [90, 0, 0],
   [0, 90, 0],
 ];
+const RICH_APERTURE_TEMPLATES = [
+  ...APERTURE_COMPLEX_TEMPLATES,
+  ...APERTURE_FACETED_TEMPLATES,
+] as const;
 
 const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   (count, point, index) => {
@@ -117,8 +125,8 @@ export class ApertureGenerator {
   ): ApertureQuestion {
     const rootRandom = createRandomSource(seed);
     const templatePool = difficulty >= 3
-      ? [...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_TEMPLATES]
-      : [...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_TEMPLATES];
+      ? [...RICH_APERTURE_TEMPLATES, ...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES]
+      : [...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES];
     const objectTemplate = rootRandom.fork("template").pick(templatePool);
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
@@ -235,6 +243,7 @@ export class ApertureGenerator {
         mode: "principal-projection-exact-fit-v2",
         principalProjectionCount: uniquePrincipal.length,
         pictorialSpin,
+        objectFamily: objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
       },
     };
     const validation = validateApertureQuestion(baseQuestion);
