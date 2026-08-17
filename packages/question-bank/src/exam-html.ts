@@ -47,6 +47,14 @@ const CATEGORY_DETAILS: Readonly<Record<PatQuestionType, { readonly title: strin
   },
 };
 
+const QUESTIONS_PER_PAGE: Readonly<Record<Exclude<PatQuestionType, "cube-counting">, number>> = {
+  aperture: 5,
+  "view-recognition": 4,
+  angle: 5,
+  "paper-folding": 4,
+  "form-development": 5,
+};
+
 const escapeHtml = (value: string): string => value
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -83,27 +91,28 @@ const rowSvg = (question: AnyPatQuestion, number: number): string => {
       return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptW, "", prompt)}${choices}</svg>`;
     }
     case "view-recognition": {
-      const panelW = 500;
+      const rowH = 354;
+      const panelW = 520;
       const cw = (1223 - panelW) / 4;
-      const cx = 250;
-      const cy = 138;
+      const cx = 260;
+      const cy = 176;
       const views = new Map(question.prompt.givenViews.map((view) => [view.name, view]));
       const labels: Record<string, string> = { top: "TOP", front: "FRONT", end: "END" };
       const positions: Readonly<Record<"top" | "front" | "end", readonly [number, number]>> = {
-        top: [125, 8],
-        front: [125, 145],
-        end: [375, 145],
+        top: [130, 8],
+        front: [130, 182],
+        end: [390, 182],
       };
-      const cross = `<line x1="4" y1="${cy}" x2="496" y2="${cy}" stroke="#222" stroke-width="1.2"/><line x1="${cx}" y1="4" x2="${cx}" y2="278" stroke="#222" stroke-width="1.2"/>`;
+      const cross = `<line x1="4" y1="${cy}" x2="516" y2="${cy}" stroke="#222" stroke-width="1.2"/><line x1="${cx}" y1="4" x2="${cx}" y2="350" stroke="#222" stroke-width="1.2"/>`;
       const prompt = (Object.entries(positions) as Array<["top" | "front" | "end", readonly [number, number]]>).map(([name, [x, y]]) => {
         const view = views.get(name);
-        const label = svgText(x, y + 12, labels[name] ?? name.toUpperCase(), 10, "middle", "700");
-        if (view === undefined) return `${label}${svgText(x, y + 88, "?", 34, "middle")}`;
-        return `${label}${positionedSvg(view.svg, x - 70, y + 16, 140, 108)}`;
+        const label = svgText(x, y + 13, labels[name] ?? name.toUpperCase(), 11, "middle", "700");
+        if (view === undefined) return `${label}${svgText(x, y + 112, "?", 38, "middle")}`;
+        return `${label}${positionedSvg(view.svg, x - 96, y + 18, 192, 142)}`;
       }).join("");
       const choices = question.choices.map((choice, index) =>
-        cell(panelW + cw * index, cw, answerLetter(index), positionedSvg(choice.svg, panelW + cw * index + 8, 32, cw - 16, 216))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, panelW, "", `${cross}${prompt}`)}${choices}</svg>`;
+        cell(panelW + cw * index, cw, answerLetter(index), positionedSvg(choice.svg, panelW + cw * index + 8, 30, cw - 16, 292), rowH - 2)).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 ${rowH}" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, panelW, "", `${cross}${prompt}`, rowH - 2)}${choices}</svg>`;
     }
     case "angle": {
       const angleW = 820;
@@ -115,22 +124,22 @@ const rowSvg = (question: AnyPatQuestion, number: number): string => {
       return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title><rect fill="#fff" height="282" stroke="#222" stroke-width="1.25" width="1223" x="1" y="1"/>${prompt}${choices}</svg>`;
     }
     case "paper-folding": {
+      const rowH = 376;
+      const diagramSize = 160;
       const steps = question.prompt.stepSvgs;
-      const stepW = Math.min(176, 1060 / Math.max(1, steps.length));
-      const gap = 10;
+      const stepGap = 14;
       const stepsBlock = steps.map((step, index) => {
-        const x = 18 + index * (stepW + gap);
+        const x = 18 + index * (diagramSize + stepGap);
         const label = index === steps.length - 1 ? "PUNCH" : `FOLD ${index + 1}`;
-        return `${positionedSvg(step, x, 18, stepW, 142)}${svgText(x + stepW / 2, 171, label, 10, "middle", "700")}`;
+        return `${positionedSvg(step, x, 10, diagramSize, diagramSize)}${svgText(x + diagramSize / 2, 182, label, 10, "middle", "700")}`;
       }).join("");
-      const choiceW = 158;
       const choiceGap = 18;
       const choiceStart = 18;
       const choices = question.choices.map((choice, index) => {
-        const x = choiceStart + index * (choiceW + choiceGap);
-        return `${positionedSvg(choice.svg, x, 190, choiceW, 152)}${svgText(x + choiceW / 2, 356, answerLetter(index), 11, "middle", "700")}`;
+        const x = choiceStart + index * (diagramSize + choiceGap);
+        return `${positionedSvg(choice.svg, x, 198, diagramSize, diagramSize)}${svgText(x + diagramSize / 2, 370, answerLetter(index), 11, "middle", "700")}`;
       }).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row question-row-paper" role="img" viewBox="0 0 1225 370" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title><rect fill="#fff" height="368" stroke="#222" stroke-width="1.25" width="1223" x="1" y="1"/>${stepsBlock}${choices}</svg>`;
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row question-row-paper" role="img" viewBox="0 0 1225 ${rowH}" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title><rect fill="#fff" height="${rowH - 2}" stroke="#222" stroke-width="1.25" width="1223" x="1" y="1"/>${stepsBlock}${choices}</svg>`;
     }
     case "cube-counting": {
       const figW = 355;
@@ -166,11 +175,11 @@ const pageHeader = (type: PatQuestionType, pageIndex: number, pageCount: number)
 };
 
 const standardSectionPages = (
-  type: PatQuestionType,
+  type: Exclude<PatQuestionType, "cube-counting">,
   questions: readonly AnyPatQuestion[],
   numberById: ReadonlyMap<string, number>,
 ): string => {
-  const groups = chunk(questions, 5);
+  const groups = chunk(questions, QUESTIONS_PER_PAGE[type]);
   return groups.map((group, pageIndex) => `<section class="exam-page category-${escapeHtml(type)}">${pageHeader(type, pageIndex, groups.length)}<div class="question-stack">${group.map((question) => `<article class="exam-question" data-exam-question data-number="${numberById.get(question.id) ?? 0}" id="question-${numberById.get(question.id) ?? 0}"><div class="question-number">${numberById.get(question.id) ?? 0}</div>${rowSvg(question, numberById.get(question.id) ?? 0)}</article>`).join("")}</div></section>`).join("");
 };
 
@@ -202,7 +211,7 @@ const cubeSectionPages = (
     if (last !== undefined && last[0]?.prompt.figure.id === question.prompt.figure.id) last.push(question);
     else byFigure.push([question]);
   }
-  const pages = chunk(byFigure, 2);
+  const pages = chunk(byFigure, 4);
   return pages.map((groups, pageIndex) => `<section class="exam-page category-cube-counting">${pageHeader("cube-counting", pageIndex, pages.length)}<div class="cube-stack">${groups.map((group) => cubeGroup(group, numberById)).join("")}</div></section>`).join("");
 };
 
@@ -217,7 +226,7 @@ const answerSheet = (questions: readonly AnyPatQuestion[]): string => {
 const coverPage = (questions: readonly AnyPatQuestion[], options: ExamHtmlOptions): string => `<section class="exam-page cover-page"><div class="cover-content"><p class="eyebrow">ManipAT</p><h1>Perceptual Ability Practice Test</h1><p class="cover-meta">${questions.length} questions · 60 minutes · printable full set</p><div class="cover-rule"></div><h2>Instructions</h2><p>Work through all six sections in order. Choose the single best answer for each question. Use the separate answer sheet to record responses.</p><dl><div><dt>Seed</dt><dd>${escapeHtml(options.seed)}</dd></div><div><dt>Profile</dt><dd>${escapeHtml(options.profile)}</dd></div><div><dt>Difficulty</dt><dd>${escapeHtml(options.difficulty)}</dd></div></dl></div></section>`;
 
 const style = String.raw`<style>
-  :root{color-scheme:light;--ink:#111;--line:#222;--paper:#fff;--screen:#e8ebe9}*{box-sizing:border-box}html{background:var(--screen)}body{background:var(--screen);color:var(--ink);font-family:Arial,Helvetica,sans-serif;margin:0}.exam{margin:0 auto;max-width:8.5in}.exam-page{background:#fff;box-shadow:0 2px 14px #0002;margin:18px auto;min-height:11in;padding:.28in;width:8.5in}.section-header{align-items:flex-start;border-bottom:1.5px solid #111;display:flex;justify-content:space-between;margin-bottom:.1in;padding-bottom:.07in}.section-header div{display:flex;flex-direction:column;gap:2px}.section-header strong{font-size:13pt}.section-header span{font-size:7.5pt;line-height:1.25;max-width:6.6in}.section-header small{font-size:7pt;white-space:nowrap}.question-stack{display:flex;flex-direction:column}.exam-question{height:1.93in;position:relative}.question-number{font-size:7pt;font-weight:700;left:3px;position:absolute;top:3px;z-index:2}.question-row{display:block;height:100%;width:100%}.category-paper-folding .exam-question{height:1.93in}.cube-stack{display:flex;flex-direction:column;gap:.1in}.cube-figure-group{height:4.75in}.cube-group-svg{display:block;height:100%;width:100%}.cover-page{align-items:center;display:flex;justify-content:center}.cover-content{max-width:6.6in}.eyebrow{font-size:11pt;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.cover-content h1{font-size:28pt;margin:.1in 0}.cover-meta{font-size:12pt}.cover-rule{border-top:2px solid #111;margin:.45in 0}.cover-content h2{font-size:15pt}.cover-content p{font-size:10pt;line-height:1.5}.cover-content dl{border-top:1px solid #777;margin-top:.4in;padding-top:.2in}.cover-content dl div{display:grid;font-size:9pt;grid-template-columns:1.2in 1fr;margin:.08in 0}.cover-content dt{font-weight:700}.cover-content dd{margin:0}.answer-grid{display:grid;gap:.08in .18in;grid-template-columns:repeat(3,1fr);padding-top:.08in}.answer-item{align-items:center;border-bottom:1px solid #bbb;display:grid;font-size:8.5pt;grid-template-columns:.3in repeat(5,1fr);min-height:.25in}.answer-item span{text-align:center}
+  :root{color-scheme:light;--ink:#111;--line:#222;--paper:#fff;--screen:#e8ebe9}*{box-sizing:border-box}html{background:var(--screen)}body{background:var(--screen);color:var(--ink);font-family:Arial,Helvetica,sans-serif;margin:0}.exam{margin:0 auto;max-width:8.5in}.exam-page{background:#fff;box-shadow:0 2px 14px #0002;margin:18px auto;min-height:11in;padding:.28in;width:8.5in}.section-header{align-items:flex-start;border-bottom:1.5px solid #111;display:flex;justify-content:space-between;margin-bottom:.1in;padding-bottom:.07in}.section-header div{display:flex;flex-direction:column;gap:2px}.section-header strong{font-size:13pt}.section-header span{font-size:7.5pt;line-height:1.25;max-width:6.6in}.section-header small{font-size:7pt;white-space:nowrap}.question-stack{display:flex;flex-direction:column}.exam-question{height:1.93in;position:relative}.category-view-recognition .exam-question{height:2.36in}.category-paper-folding .exam-question{height:2.36in}.question-number{font-size:7pt;font-weight:700;left:3px;position:absolute;top:3px;z-index:2}.question-row{display:block;height:100%;width:100%}.cube-stack{display:flex;flex-direction:column;gap:.06in}.cube-figure-group{height:2.28in}.cube-group-svg{display:block;height:100%;width:100%}.cover-page{align-items:center;display:flex;justify-content:center}.cover-content{max-width:6.6in}.eyebrow{font-size:11pt;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.cover-content h1{font-size:28pt;margin:.1in 0}.cover-meta{font-size:12pt}.cover-rule{border-top:2px solid #111;margin:.45in 0}.cover-content h2{font-size:15pt}.cover-content p{font-size:10pt;line-height:1.5}.cover-content dl{border-top:1px solid #777;margin-top:.4in;padding-top:.2in}.cover-content dl div{display:grid;font-size:9pt;grid-template-columns:1.2in 1fr;margin:.08in 0}.cover-content dt{font-weight:700}.cover-content dd{margin:0}.answer-grid{display:grid;gap:.08in .18in;grid-template-columns:repeat(3,1fr);padding-top:.08in}.answer-item{align-items:center;border-bottom:1px solid #bbb;display:grid;font-size:8.5pt;grid-template-columns:.3in repeat(5,1fr);min-height:.25in}.answer-item span{text-align:center}
   @page{size:letter portrait;margin:0}@media print{html,body{background:#fff}.exam{margin:0;max-width:none}.exam-page{break-after:page;box-shadow:none;margin:0;min-height:11in;page-break-after:always;padding:.28in;width:8.5in}.exam-page:last-child{break-after:auto;page-break-after:auto}.exam-question,.cube-figure-group{break-inside:avoid;page-break-inside:avoid}}
   @media screen and (max-width:850px){.exam{max-width:100%;overflow:auto}.exam-page{margin:8px 0;min-width:8.5in}}
 </style>`;
