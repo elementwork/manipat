@@ -3,6 +3,7 @@ import {
   createRandomSource,
   fingerprint64,
   type JsonValue,
+  type RandomSource,
   type Vec2,
 } from "@manipat/core";
 import {
@@ -15,53 +16,76 @@ import {
 import { renderFoldStep, renderHolePattern } from "./render.js";
 import type {
   FoldInstruction,
+  FoldState,
   PaperFoldingChoice,
   PaperFoldingQuestion,
 } from "./types.js";
 import { validatePaperFoldingQuestion } from "./validator.js";
 
 const SQRT_HALF = Math.SQRT1_2;
-const VERTICAL: FoldInstruction = { id: "vertical", line: { point: [2, 0], unitDirection: [0, 1] }, movingSide: -1 };
-const HORIZONTAL: FoldInstruction = { id: "horizontal", line: { point: [0, 2], unitDirection: [1, 0] }, movingSide: 1 };
-const DIAGONAL: FoldInstruction = { id: "diagonal", line: { point: [0, 0], unitDirection: [SQRT_HALF, SQRT_HALF] }, movingSide: 1 };
-const ANTI_DIAGONAL: FoldInstruction = { id: "anti-diagonal", line: { point: [0, 4], unitDirection: [SQRT_HALF, -SQRT_HALF] }, movingSide: 1 };
-
-const ONE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
-  [VERTICAL], [HORIZONTAL], [DIAGONAL], [ANTI_DIAGONAL],
-];
-const TWO_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
-  [VERTICAL, HORIZONTAL], [HORIZONTAL, VERTICAL],
-  [VERTICAL, DIAGONAL], [VERTICAL, ANTI_DIAGONAL],
-  [HORIZONTAL, DIAGONAL], [HORIZONTAL, ANTI_DIAGONAL],
-  [DIAGONAL, VERTICAL], [DIAGONAL, HORIZONTAL],
-  [ANTI_DIAGONAL, VERTICAL], [ANTI_DIAGONAL, HORIZONTAL],
-];
-const THREE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
-  [VERTICAL, HORIZONTAL, DIAGONAL], [VERTICAL, HORIZONTAL, ANTI_DIAGONAL],
-  [VERTICAL, DIAGONAL, HORIZONTAL], [VERTICAL, DIAGONAL, ANTI_DIAGONAL],
-  [VERTICAL, ANTI_DIAGONAL, HORIZONTAL], [VERTICAL, ANTI_DIAGONAL, DIAGONAL],
-  [HORIZONTAL, VERTICAL, DIAGONAL], [HORIZONTAL, VERTICAL, ANTI_DIAGONAL],
-  [HORIZONTAL, DIAGONAL, VERTICAL], [HORIZONTAL, DIAGONAL, ANTI_DIAGONAL],
-  [HORIZONTAL, ANTI_DIAGONAL, VERTICAL], [HORIZONTAL, ANTI_DIAGONAL, DIAGONAL],
-  [DIAGONAL, VERTICAL, HORIZONTAL], [DIAGONAL, VERTICAL, ANTI_DIAGONAL],
-  [DIAGONAL, HORIZONTAL, VERTICAL], [DIAGONAL, HORIZONTAL, ANTI_DIAGONAL],
-  [DIAGONAL, ANTI_DIAGONAL, VERTICAL], [DIAGONAL, ANTI_DIAGONAL, HORIZONTAL],
-  [ANTI_DIAGONAL, VERTICAL, HORIZONTAL], [ANTI_DIAGONAL, VERTICAL, DIAGONAL],
-  [ANTI_DIAGONAL, HORIZONTAL, VERTICAL], [ANTI_DIAGONAL, HORIZONTAL, DIAGONAL],
-  [ANTI_DIAGONAL, DIAGONAL, VERTICAL], [ANTI_DIAGONAL, DIAGONAL, HORIZONTAL],
+const FOLD_POOL: readonly FoldInstruction[] = [
+  { id: "center-right-left", line: { point: [2, 0], unitDirection: [0, 1] }, movingSide: -1 },
+  { id: "center-left-right", line: { point: [2, 0], unitDirection: [0, 1] }, movingSide: 1 },
+  { id: "quarter-left-in", line: { point: [1, 0], unitDirection: [0, 1] }, movingSide: 1 },
+  { id: "quarter-right-in", line: { point: [3, 0], unitDirection: [0, 1] }, movingSide: -1 },
+  { id: "center-top-bottom", line: { point: [0, 2], unitDirection: [1, 0] }, movingSide: 1 },
+  { id: "center-bottom-top", line: { point: [0, 2], unitDirection: [1, 0] }, movingSide: -1 },
+  { id: "quarter-bottom-in", line: { point: [0, 1], unitDirection: [1, 0] }, movingSide: -1 },
+  { id: "quarter-top-in", line: { point: [0, 3], unitDirection: [1, 0] }, movingSide: 1 },
+  { id: "diagonal-upper-lower", line: { point: [0, 0], unitDirection: [SQRT_HALF, SQRT_HALF] }, movingSide: 1 },
+  { id: "diagonal-lower-upper", line: { point: [0, 0], unitDirection: [SQRT_HALF, SQRT_HALF] }, movingSide: -1 },
+  { id: "anti-diagonal-upper-lower", line: { point: [0, 4], unitDirection: [SQRT_HALF, -SQRT_HALF] }, movingSide: 1 },
+  { id: "anti-diagonal-lower-upper", line: { point: [0, 4], unitDirection: [SQRT_HALF, -SQRT_HALF] }, movingSide: -1 },
 ];
 
-const programsForDifficulty = (difficulty: 1 | 2 | 3 | 4 | 5): readonly (readonly FoldInstruction[])[] => {
+const pointKey = ([x, y]: Vec2): string => `${x},${y}`;
+const lineKey = ({ line }: FoldInstruction): string =>
+  `${line.point[0]},${line.point[1]}:${line.unitDirection[0].toFixed(4)},${line.unitDirection[1].toFixed(4)}`;
+
+const foldCountFor = (random: RandomSource, difficulty: 1 | 2 | 3 | 4 | 5): number => {
   switch (difficulty) {
-    case 1: return [...ONE_FOLD_PROGRAMS, ...TWO_FOLD_PROGRAMS];
-    case 2: return TWO_FOLD_PROGRAMS;
-    case 3: return [...TWO_FOLD_PROGRAMS, ...THREE_FOLD_PROGRAMS];
+    case 1: return random.fork("fold-count").int(1, 2);
+    case 2: return 2;
+    case 3: return random.fork("fold-count").int(2, 3);
     case 4:
     case 5:
-      return THREE_FOLD_PROGRAMS;
+      return 3;
     default:
       return difficulty satisfies never;
   }
+};
+
+const occupiedPositions = (state: FoldState): number =>
+  new Set(state.layers.map(({ currentCenter }) => pointKey(currentCenter))).size;
+
+const validFold = (state: FoldState, instruction: FoldInstruction): boolean => {
+  const distances = state.layers.map(({ currentCenter }) => signedDistanceFromFold(currentCenter, instruction.line));
+  const moving = distances.filter((distance) => Math.abs(distance) > 0.1 && Math.sign(distance) === instruction.movingSide).length;
+  const stationary = distances.filter((distance) => Math.abs(distance) <= 0.1 || Math.sign(distance) !== instruction.movingSide).length;
+  if (moving === 0 || stationary === 0) return false;
+  const next = applyFold(state, instruction);
+  if (next.layers.some(({ currentCenter: [x, y] }) => x < 0.5 || x > 3.5 || y < 0.5 || y > 3.5)) return false;
+  return occupiedPositions(next) < occupiedPositions(state);
+};
+
+const createFoldProgram = (
+  random: RandomSource,
+  difficulty: 1 | 2 | 3 | 4 | 5,
+): readonly FoldInstruction[] => {
+  const count = foldCountFor(random, difficulty);
+  let state = createInitialFoldState();
+  const usedLines = new Set<string>();
+  const folds: FoldInstruction[] = [];
+  for (let step = 0; step < count; step += 1) {
+    const candidates = FOLD_POOL.filter((candidate) =>
+      !usedLines.has(lineKey(candidate)) && validFold(state, candidate));
+    if (candidates.length === 0) throw new Error("No valid fold remains for requested paper-folding difficulty");
+    const selected = random.fork(`fold-${step}`).pick(candidates);
+    folds.push(selected);
+    usedLines.add(lineKey(selected));
+    state = applyFold(state, selected);
+  }
+  return folds;
 };
 
 const patternFingerprint = (holes: readonly Vec2[]): string =>
@@ -72,16 +96,27 @@ const allGridPoints = (): readonly Vec2[] => Array.from({ length: 16 }, (_, inde
   Math.floor(index / 4) + 0.5,
 ]);
 
-const distractorPatterns = (correct: readonly Vec2[]): readonly { holes: readonly Vec2[]; mutation: string }[] => {
-  const correctKeys = new Set(correct.map(([x, y]) => `${x},${y}`));
-  const available = allGridPoints().filter(([x, y]) => !correctKeys.has(`${x},${y}`));
+const patternDistance = (first: readonly Vec2[], second: readonly Vec2[]): number => {
+  const a = new Set(first.map(pointKey));
+  const b = new Set(second.map(pointKey));
+  let difference = 0;
+  for (const key of a) if (!b.has(key)) difference += 1;
+  for (const key of b) if (!a.has(key)) difference += 1;
+  return difference;
+};
+
+const distractorPatterns = (
+  correct: readonly Vec2[],
+  random: RandomSource,
+  difficulty: 1 | 2 | 3 | 4 | 5,
+): readonly { holes: readonly Vec2[]; mutation: string }[] => {
+  const correctKeys = new Set(correct.map(pointKey));
+  const available = allGridPoints().filter((point) => !correctKeys.has(pointKey(point)));
   const candidates: Array<{ holes: readonly Vec2[]; mutation: string }> = [];
-  if (correct.length > 1) candidates.push({ holes: correct.slice(0, -1), mutation: "missing-reflection" });
-  if (available[0] !== undefined) candidates.push({ holes: [...correct, available[0]], mutation: "extra-reflection" });
-  if (available[1] !== undefined) candidates.push({ holes: [available[1], ...correct.slice(1)], mutation: "wrong-quadrant" });
-  candidates.push({ holes: correct.map(([x, y]): Vec2 => [4 - x, y]), mutation: "wrong-symmetry" });
-  candidates.push({ holes: correct.map(([x, y]): Vec2 => [x, 4 - y]), mutation: "wrong-fold-order" });
+  candidates.push({ holes: correct.map(([x, y]): Vec2 => [4 - x, y]), mutation: "wrong-horizontal-symmetry" });
+  candidates.push({ holes: correct.map(([x, y]): Vec2 => [x, 4 - y]), mutation: "wrong-vertical-symmetry" });
   candidates.push({ holes: correct.map(([x, y]): Vec2 => [y, x]), mutation: "wrong-diagonal" });
+  candidates.push({ holes: correct.map(([x, y]): Vec2 => [4 - y, 4 - x]), mutation: "wrong-anti-diagonal" });
   for (let index = 0; index < correct.length; index += 1) {
     candidates.push({ holes: correct.filter((_, candidateIndex) => candidateIndex !== index), mutation: "missing-reflection" });
   }
@@ -99,13 +134,42 @@ const distractorPatterns = (correct: readonly Vec2[]): readonly { holes: readonl
 
   const unique = new Map<string, { holes: readonly Vec2[]; mutation: string }>();
   for (const candidate of candidates) {
-    const holes = [...new Map(candidate.holes.map((point) => [`${point[0]},${point[1]}`, point])).values()]
+    const holes = [...new Map(candidate.holes.map((point) => [pointKey(point), point])).values()]
       .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
     const fingerprint = patternFingerprint(holes);
     if (fingerprint !== patternFingerprint(correct)) unique.set(fingerprint, { holes, mutation: candidate.mutation });
   }
-  if (unique.size < 4) throw new Error("Could not generate four unique paper-folding distractors");
-  return [...unique.values()].slice(0, 4);
+
+  const pool = random.fork("distractor-order").shuffle([...unique.values()]);
+  const minimumCorrectDistance = difficulty >= 4 ? 1 : 2;
+  const selected: Array<{ holes: readonly Vec2[]; mutation: string }> = [];
+  while (selected.length < 4) {
+    let best: { holes: readonly Vec2[]; mutation: string } | undefined;
+    let bestScore = -1;
+    for (const candidate of pool) {
+      if (selected.includes(candidate)) continue;
+      const fromCorrect = patternDistance(correct, candidate.holes);
+      if (fromCorrect < minimumCorrectDistance) continue;
+      const fromSelected = selected.length === 0
+        ? fromCorrect
+        : Math.min(...selected.map(({ holes }) => patternDistance(holes, candidate.holes)));
+      const score = Math.min(fromCorrect, fromSelected);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    if (best === undefined) break;
+    selected.push(best);
+  }
+  if (selected.length < 4) {
+    for (const candidate of pool) {
+      if (selected.length === 4) break;
+      if (!selected.includes(candidate)) selected.push(candidate);
+    }
+  }
+  if (selected.length < 4) throw new Error("Could not generate four diverse paper-folding distractors");
+  return selected;
 };
 
 export const generatePaperFoldingQuestion = (
@@ -113,12 +177,10 @@ export const generatePaperFoldingQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): PaperFoldingQuestion => {
   const random = createRandomSource(seed);
-  // DAT-style grammar: one to three folds. Higher difficulty increases
-  // diagonal combinations, punch count and resulting hole complexity.
-  const folds = random.fork("folds").pick(programsForDifficulty(difficulty));
+  const folds = createFoldProgram(random.fork("folds"), difficulty);
   const folded = folds.reduce(applyFold, createInitialFoldState());
   const locations = [...new Map(folded.layers.map(({ currentCenter }) => [
-    `${currentCenter[0]},${currentCenter[1]}`,
+    pointKey(currentCenter),
     currentCenter,
   ])).values()].filter((point) => folds.every(({ line }) =>
     Math.abs(signedDistanceFromFold(point, line)) > 0.1));
@@ -130,7 +192,7 @@ export const generatePaperFoldingQuestion = (
   const correctFingerprint = patternFingerprint(correctHoles);
   const rawChoices = [
     { holes: correctHoles, fingerprint: correctFingerprint },
-    ...distractorPatterns(correctHoles).map(({ holes, mutation }) => ({
+    ...distractorPatterns(correctHoles, random.fork("distractors"), difficulty).map(({ holes, mutation }) => ({
       holes,
       mutation,
       fingerprint: patternFingerprint(holes),
@@ -152,8 +214,8 @@ export const generatePaperFoldingQuestion = (
     engineVersion: "0.1.0",
     type: "paper-folding",
     seed,
-    templateId: `fold-program-${folds.map(({ id }) => id).join("-")}`,
-    templateVersion: 1,
+    templateId: `state-valid-${folds.map(({ id }) => id).join("-")}`,
+    templateVersion: 2,
     prompt: {
       folds,
       punches,
@@ -175,7 +237,7 @@ export const generatePaperFoldingQuestion = (
     },
     validation: { passed: false, checks: [] },
     fingerprints: { pattern: correctFingerprint, question: questionFingerprint },
-    metadata: { gridSize: 4, layerCount: 16 },
+    metadata: { gridSize: 4, layerCount: 16, foldModel: "state-valid-v2" },
   };
   const validation = validatePaperFoldingQuestion(base);
   if (!validation.passed) throw new Error(`Paper folding validation failed: ${validation.checks.filter(({ passed }) => !passed).map(({ id }) => id).join(", ")}`);
