@@ -1,20 +1,16 @@
-import type { Vec2 } from "@manipat/core";
+import type { Vec2, Vec3 } from "@manipat/core";
 import { areFacesAdjacent, buildFaceAdjacency } from "./adjacency.js";
 import type {
   LogicalPolyhedron,
+  NetConnection,
   NetFace,
   PolyhedronNet,
 } from "./types.js";
 
 const square = (x: number, y: number): readonly Vec2[] => [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
-const rectangle = (x0: number, y0: number, x1: number, y1: number): readonly Vec2[] => [
-  [x0, y0], [x1, y0], [x1, y1], [x0, y1],
-];
 
-const TRAPEZOID_SLANT = Math.sqrt(4.25);
-const HOUSE_ROOF = Math.hypot(1, 1.05);
-
-const NETS: Readonly<Record<LogicalPolyhedron["id"], PolyhedronNet>> = {
+/** Legacy fixed nets retained for v1 question replay and previews. */
+const LEGACY_NETS: Readonly<Partial<Record<LogicalPolyhedron["id"], PolyhedronNet>>> = {
   cube: {
     polyhedronId: "cube",
     faces: [
@@ -61,44 +57,101 @@ const NETS: Readonly<Record<LogicalPolyhedron["id"], PolyhedronNet>> = {
       { faceA: "base", faceB: "side-back" }, { faceA: "base", faceB: "side-left" },
     ],
   },
-  "trapezoidal-prism": {
-    polyhedronId: "trapezoidal-prism",
+};
+
+const distance3 = (a: Vec3, b: Vec3): number => Math.hypot(
+  b[0] - a[0],
+  b[1] - a[1],
+  b[2] - a[2],
+);
+
+interface PrismNetDefinition {
+  readonly profileVertexIds: readonly number[];
+  readonly backProfileVertexIds: readonly number[];
+  readonly sideFaceIds: readonly string[];
+  readonly frontFaceId: string;
+  readonly backFaceId: string;
+}
+
+const prismDefinition = (polyhedron: LogicalPolyhedron): PrismNetDefinition | undefined => {
+  switch (polyhedron.id) {
+    case "trapezoidal-prism":
+      return {
+        profileVertexIds: [0, 1, 2, 3],
+        backProfileVertexIds: [4, 5, 6, 7],
+        sideFaceIds: ["side-bottom", "side-right", "side-top", "side-left"],
+        frontFaceId: "end-front",
+        backFaceId: "end-back",
+      };
+    case "house-prism":
+      return {
+        profileVertexIds: [0, 1, 2, 3, 4],
+        backProfileVertexIds: [5, 6, 7, 8, 9],
+        sideFaceIds: ["side-bottom", "side-right", "roof-right", "roof-left", "side-left"],
+        frontFaceId: "end-front",
+        backFaceId: "end-back",
+      };
+    default:
+      return undefined;
+  }
+};
+
+const buildPrismNet = (
+  polyhedron: LogicalPolyhedron,
+  definition: PrismNetDefinition,
+): PolyhedronNet => {
+  const profile = definition.profileVertexIds.map((id) => polyhedron.vertices[id]);
+  const backProfile = definition.backProfileVertexIds.map((id) => polyhedron.vertices[id]);
+  if (profile.some((vertex) => vertex === undefined) || backProfile.some((vertex) => vertex === undefined)) {
+    throw new TypeError(`Polyhedron ${polyhedron.id} has incomplete prism profile vertices`);
+  }
+  const typedProfile = profile as readonly Vec3[];
+  const typedBackProfile = backProfile as readonly Vec3[];
+  const depth = distance3(typedProfile[0]!, typedBackProfile[0]!);
+  const edgeLengths = typedProfile.map((vertex, index) =>
+    distance3(vertex, typedProfile[(index + 1) % typedProfile.length]!));
+
+  let cursor = 0;
+  const sideFaces: NetFace[] = definition.sideFaceIds.map((faceId, index) => {
+    const width = edgeLengths[index] ?? 0;
+    const polygon: readonly Vec2[] = [
+      [cursor, 0], [cursor + width, 0], [cursor + width, depth], [cursor, depth],
+    ];
+    cursor += width;
+    return { faceId, polygon };
+  });
+
+  const first = typedProfile[0]!;
+  const frontPolygon: readonly Vec2[] = typedProfile.map(([x, , z]): Vec2 => [
+    x - first[0],
+    -(z - first[2]),
+  ]);
+  const backPolygon: readonly Vec2[] = typedBackProfile.map(([x, , z]): Vec2 => [
+    x - typedBackProfile[0]![0],
+    depth + (z - typedBackProfile[0]![2]),
+  ]);
+
+  const connections: NetConnection[] = [];
+  for (let index = 0; index < definition.sideFaceIds.length - 1; index += 1) {
+    connections.push({
+      faceA: definition.sideFaceIds[index]!,
+      faceB: definition.sideFaceIds[index + 1]!,
+    });
+  }
+  connections.push(
+    { faceA: definition.sideFaceIds[0]!, faceB: definition.frontFaceId },
+    { faceA: definition.sideFaceIds[0]!, faceB: definition.backFaceId },
+  );
+
+  return {
+    polyhedronId: polyhedron.id,
     faces: [
-      { faceId: "side-bottom", polygon: rectangle(0, 2.5, 2.6, 4.5) },
-      { faceId: "side-right", polygon: rectangle(2.6, 2.5, 2.6 + TRAPEZOID_SLANT, 4.5) },
-      { faceId: "side-top", polygon: rectangle(2.6 + TRAPEZOID_SLANT, 2.5, 4.2 + TRAPEZOID_SLANT, 4.5) },
-      { faceId: "side-left", polygon: rectangle(4.2 + TRAPEZOID_SLANT, 2.5, 4.2 + TRAPEZOID_SLANT * 2, 4.5) },
-      { faceId: "end-front", polygon: [[0, 2.5], [2.6, 2.5], [2.1, 0.5], [0.5, 0.5]] },
-      { faceId: "end-back", polygon: [[0, 4.5], [2.6, 4.5], [2.1, 6.5], [0.5, 6.5]] },
+      ...sideFaces,
+      { faceId: definition.frontFaceId, polygon: frontPolygon },
+      { faceId: definition.backFaceId, polygon: backPolygon },
     ],
-    connections: [
-      { faceA: "side-bottom", faceB: "side-right" },
-      { faceA: "side-right", faceB: "side-top" },
-      { faceA: "side-top", faceB: "side-left" },
-      { faceA: "side-bottom", faceB: "end-front" },
-      { faceA: "side-bottom", faceB: "end-back" },
-    ],
-  },
-  "house-prism": {
-    polyhedronId: "house-prism",
-    faces: [
-      { faceId: "side-bottom", polygon: rectangle(0, 3, 2, 5) },
-      { faceId: "side-right", polygon: rectangle(2, 3, 3.2, 5) },
-      { faceId: "roof-right", polygon: rectangle(3.2, 3, 3.2 + HOUSE_ROOF, 5) },
-      { faceId: "roof-left", polygon: rectangle(3.2 + HOUSE_ROOF, 3, 3.2 + HOUSE_ROOF * 2, 5) },
-      { faceId: "side-left", polygon: rectangle(3.2 + HOUSE_ROOF * 2, 3, 4.4 + HOUSE_ROOF * 2, 5) },
-      { faceId: "end-front", polygon: [[0, 3], [2, 3], [2, 1.8], [1, 0.75], [0, 1.8]] },
-      { faceId: "end-back", polygon: [[0, 5], [2, 5], [2, 6.2], [1, 7.25], [0, 6.2]] },
-    ],
-    connections: [
-      { faceA: "side-bottom", faceB: "side-right" },
-      { faceA: "side-right", faceB: "roof-right" },
-      { faceA: "roof-right", faceB: "roof-left" },
-      { faceA: "roof-left", faceB: "side-left" },
-      { faceA: "side-bottom", faceB: "end-front" },
-      { faceA: "side-bottom", faceB: "end-back" },
-    ],
-  },
+    connections,
+  };
 };
 
 const cross = (a: Vec2, b: Vec2, c: Vec2): number =>
@@ -141,7 +194,13 @@ const polygonsOverlap = (first: NetFace, second: NetFace): boolean => {
   return pointInside(firstCenter, second.polygon) || pointInside(secondCenter, first.polygon);
 };
 
-export const createNet = (polyhedron: LogicalPolyhedron): PolyhedronNet => NETS[polyhedron.id];
+export const createNet = (polyhedron: LogicalPolyhedron): PolyhedronNet => {
+  const definition = prismDefinition(polyhedron);
+  if (definition !== undefined) return buildPrismNet(polyhedron, definition);
+  const legacy = LEGACY_NETS[polyhedron.id];
+  if (legacy === undefined) throw new TypeError(`No net builder registered for ${polyhedron.id}`);
+  return legacy;
+};
 
 export interface NetVerification {
   readonly valid: boolean;
