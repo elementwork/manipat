@@ -40,10 +40,12 @@ import { validateApertureQuestion } from "./validator.js";
 const clamp = (value: number, minimum: number, maximum: number): number =>
   Math.min(maximum, Math.max(minimum, value));
 
+// Fixed top-left pictorial camera. Positive Z maps to screen-up, so tiered
+// objects consistently read as broad/heavy at the bottom and smaller on top.
 const ISOMETRIC_FRAME: ProjectionFrame = {
-  viewDirection: [-1 / Math.sqrt(3), -1 / Math.sqrt(3), -1 / Math.sqrt(3)],
+  viewDirection: [1 / Math.sqrt(3), 1 / Math.sqrt(3), -1 / Math.sqrt(3)],
   imageRight: [1 / Math.sqrt(2), -1 / Math.sqrt(2), 0],
-  imageUp: [1 / Math.sqrt(6), 1 / Math.sqrt(6), -2 / Math.sqrt(6)],
+  imageUp: [1 / Math.sqrt(6), 1 / Math.sqrt(6), 2 / Math.sqrt(6)],
 };
 
 const PRINCIPAL_ORIENTATIONS: readonly Vec3[] = [
@@ -165,7 +167,9 @@ export class ApertureGenerator {
     const correctSilhouette = target.silhouette;
     const targetFingerprint = silhouetteFingerprint(correctSilhouette);
 
-    const pictorialSpin = rootRandom.fork("pictorial-spin").pick([0, 90, 180, 270] as const);
+    // Keep the pictorial orientation fixed. Random Z spins made the same family
+    // read inconsistently across questions and obscured the intended top-left view.
+    const pictorialSpin = 0 as const;
     using pictorialSolid = this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
     const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
     const pictorialSvg = renderAperturePictorial(createOrthographicView(pictorialMesh, ISOMETRIC_FRAME));
@@ -243,6 +247,7 @@ export class ApertureGenerator {
         mode: "principal-projection-exact-fit-v2",
         principalProjectionCount: uniquePrincipal.length,
         pictorialSpin,
+        pictorialCamera: "top-left-fixed-v3",
         objectFamily: objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
       },
     };
