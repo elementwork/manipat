@@ -59,8 +59,14 @@ const answerLetter = (index: number): string => String.fromCharCode(65 + index);
 const svgText = (x: number, y: number, value: string, size = 14, anchor = "start", weight = "normal"): string =>
   `<text fill="#171b18" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" x="${x}" y="${y}">${escapeHtml(value)}</text>`;
 
-const positionedSvg = (content: string, x: number, y: number, width: number, height: number): string =>
-  content.replace("<svg", `<svg height="${height}" preserveAspectRatio="xMidYMid meet" width="${width}" x="${x}" y="${y}"`);
+const positionedSvg = (content: string, x: number, y: number, width: number, height: number): string => {
+  const scale = 1.25;
+  const sw = Math.round(width * scale);
+  const sh = Math.round(height * scale);
+  const dx = Math.round((sw - width) / 2);
+  const dy = Math.round((sh - height) / 2);
+  return content.replace("<svg", `<svg height="${sh}" preserveAspectRatio="xMidYMid meet" width="${sw}" x="${x - dx}" y="${y - dy}"`);
+};
 
 const cell = (x: number, width: number, label: string, artwork: string): string =>
   `<rect fill="#fff" height="282" stroke="#231f20" stroke-width="1.7" width="${width}" x="${x}" y="1"/>${artwork}${svgText(x + width / 2, 270, label, 15, "middle", "700")}`;
