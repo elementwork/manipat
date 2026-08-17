@@ -23,8 +23,8 @@ export const renderAnglePrompt = (items: readonly AngleItem[]): string => {
     [646, 84],
   ];
 
-  // Scale factor: larger angles for better visibility
-  const SCALE = 2.5;
+  // Scale factor: large enough for3-degree gaps to be clearly visible
+  const SCALE = 3.5;
 
   return svgDocument({
     viewBox: [0, 0, 820, 185],

@@ -19,24 +19,24 @@ interface Mutation {
 
 const MUTATIONS: readonly Mutation[] = [
   {
-    reason: { type: "too-wide", details: { axis: "x", factor: 1.08 } },
-    transform: ([x, y], [cx]): Vec2 => [cx + (x - cx) * 1.08, y],
+    reason: { type: "too-wide", details: { axis: "x", factor: 1.2 } },
+    transform: ([x, y], [cx]): Vec2 => [cx + (x - cx) * 1.2, y],
   },
   {
-    reason: { type: "too-narrow", details: { axis: "x", factor: 0.92 } },
-    transform: ([x, y], [cx]): Vec2 => [cx + (x - cx) * 0.92, y],
+    reason: { type: "too-narrow", details: { axis: "x", factor: 0.8 } },
+    transform: ([x, y], [cx]): Vec2 => [cx + (x - cx) * 0.8, y],
   },
   {
     reason: { type: "wrong-position", details: { mutation: "horizontal-shear" } },
-    transform: ([x, y], [, cy]): Vec2 => [x + (y - cy) * 0.08, y],
+    transform: ([x, y], [, cy]): Vec2 => [x + (y - cy) * 0.2, y],
   },
   {
-    reason: { type: "wrong-projection", details: { mutation: "vertical-scale", factor: 1.09 } },
-    transform: ([x, y], [, cy]): Vec2 => [x, cy + (y - cy) * 1.09],
+    reason: { type: "wrong-projection", details: { mutation: "vertical-scale", factor: 1.25 } },
+    transform: ([x, y], [, cy]): Vec2 => [x, cy + (y - cy) * 1.25],
   },
   {
     reason: { type: "wrong-position", details: { mutation: "vertical-shear" } },
-    transform: ([x, y], [cx]): Vec2 => [x, y + (x - cx) * 0.07],
+    transform: ([x, y], [cx]): Vec2 => [x, y + (x - cx) * 0.18],
   },
 ];
 

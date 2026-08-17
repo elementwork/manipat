@@ -26,8 +26,8 @@ const shifted = ({ a, b }: Segment2, amount: number): Segment2 => {
 };
 
 const shortened = ({ a, b }: Segment2): Segment2 => ({
-  a: [a[0] + (b[0] - a[0]) * 0.08, a[1] + (b[1] - a[1]) * 0.08],
-  b: [b[0] - (b[0] - a[0]) * 0.08, b[1] - (b[1] - a[1]) * 0.08],
+  a: [a[0] + (b[0] - a[0]) * 0.2, a[1] + (b[1] - a[1]) * 0.2],
+  b: [b[0] - (b[0] - a[0]) * 0.2, b[1] - (b[1] - a[1]) * 0.2],
 });
 
 export const generateTfeDistractors = (
@@ -60,7 +60,7 @@ export const generateTfeDistractors = (
   };
 
   add("move-line", visible.map((line, index) =>
-    index === longestVisibleIndex ? shifted(line, Math.max(2, span * 0.06)) : line), hidden);
+    index === longestVisibleIndex ? shifted(line, Math.max(3, span * 0.15)) : line), hidden);
   add("shorten-line", visible.map((line, index) =>
     index === longestVisibleIndex ? shortened(line) : line), hidden);
   add(
