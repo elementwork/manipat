@@ -10,7 +10,7 @@ import {
 } from "../src/index.js";
 
 describe("form development", () => {
-  it("derives closed adjacency and verifies cube/prism/pyramid nets", () => {
+  it("derives closed adjacency and verifies supported irregular nets", () => {
     for (const polyhedron of POLYHEDRA) {
       const adjacency = buildFaceAdjacency(polyhedron);
       expect(adjacency.length).toBeGreaterThanOrEqual(polyhedron.faces.length);
@@ -21,13 +21,23 @@ describe("form development", () => {
     }
   });
 
-  it("generates 2,000 uniquely foldable marked questions", () => {
+  it("generates 2,000 uniquely foldable geometric questions", () => {
     const polyhedra = new Set<string>();
     for (let index = 0; index < 2_000; index += 1) {
       const question = generateFormDevelopmentQuestion(`form-${index}`, ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5);
-      expect(validateFormDevelopmentQuestion(question).matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      const validation = validateFormDevelopmentQuestion(question);
+      expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      expect(validation.passed).toBe(true);
+      expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(4);
+      expect(question.choices.every(({ vertices }) => vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
+      expect(question.explanation.markedFaces).toEqual([]);
       polyhedra.add(question.prompt.polyhedron.id);
     }
-    expect(polyhedra).toEqual(new Set(["cube", "triangular-prism", "square-pyramid"]));
+    expect(polyhedra).toEqual(new Set([
+      "triangular-prism",
+      "square-pyramid",
+      "trapezoidal-prism",
+      "house-prism",
+    ]));
   }, 60_000);
 });
