@@ -15,7 +15,7 @@ describe("TfeGenerator", () => {
     );
   });
 
-  it("generates 1,000 uniquely solvable questions", async () => {
+  it("generates 1,000 uniquely solvable, structurally varied questions", async () => {
     const generator = await createTfeGenerator();
     const templates = new Set<string>();
     const missingViews = new Set<string>();
@@ -24,10 +24,20 @@ describe("TfeGenerator", () => {
       const validation = validateTfeQuestion(question);
       expect(validation.passed, `seed tfe-${index}`).toBe(true);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(4);
+      expect(new Set(question.choices.flatMap(({ mutation }) => mutation === undefined ? [] : [mutation])).size).toBeGreaterThanOrEqual(2);
+      expect(question.templateId.startsWith("TFE")).toBe(true);
       templates.add(question.templateId);
       missingViews.add(question.prompt.missingView);
     }
-    expect(templates.size).toBe(10);
+    expect(templates).toEqual(new Set([
+      "TFE01-stepped-corner",
+      "TFE02-top-front-pocket",
+      "TFE03-bridge",
+      "TFE04-terrace",
+      "TFE05-corner-notch",
+      "TFE06-crossing-ribs",
+    ]));
     expect(missingViews).toEqual(new Set(["front", "top", "end"]));
   }, 120_000);
 });
