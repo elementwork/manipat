@@ -70,7 +70,6 @@ const transformPoint = ([x, y, z]: Vec3, chirality: FormDevelopmentChoice["chira
   chirality === "mirrored" ? [-x, y, z] : [x, y, z];
 
 const project = ([x, y, z]: Vec3): Vec2 => [(x - y) * Math.sqrt(3) / 2, (x + y) * 0.5 - z];
-
 const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross3 = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],
@@ -78,6 +77,11 @@ const cross3 = (a: Vec3, b: Vec3): Vec3 => [
   a[0] * b[1] - a[1] * b[0],
 ];
 const dot3 = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const average3 = (points: readonly Vec3[]): Vec3 => [
+  points.reduce((sum, [x]) => sum + x, 0) / points.length,
+  points.reduce((sum, [, y]) => sum + y, 0) / points.length,
+  points.reduce((sum, [, , z]) => sum + z, 0) / points.length,
+];
 const CAMERA: Vec3 = [1, -1, 1];
 
 export const renderFoldedChoice = (
@@ -85,16 +89,20 @@ export const renderFoldedChoice = (
   choice: Omit<FormDevelopmentChoice, "svg">,
   title: string,
 ): string => {
-  const transformed = polyhedron.vertices.map((vertex) => transformPoint(vertex, choice.chirality));
+  const sourceVertices = choice.vertices.length === polyhedron.vertices.length
+    ? choice.vertices
+    : polyhedron.vertices;
+  const transformed = sourceVertices.map((vertex) => transformPoint(vertex, choice.chirality));
+  const solidCenter = average3(transformed);
   const faces = polyhedron.faces.flatMap((face) => {
     const vertices = face.vertexIds.map((id): Vec3 => transformed[id] ?? [0, 0, 0]);
     if (vertices.length < 3) return [];
+    const faceCenter = average3(vertices);
     const rawNormal = cross3(subtract(vertices[1]!, vertices[0]!), subtract(vertices[2]!, vertices[0]!));
-    // Reflection changes handedness while face vertex IDs retain their original
-    // winding. Restore outward-normal orientation for back-face culling.
-    const normal: Vec3 = choice.chirality === "mirrored"
-      ? [-rawNormal[0], -rawNormal[1], -rawNormal[2]]
-      : rawNormal;
+    const centerDirection = subtract(faceCenter, solidCenter);
+    const normal: Vec3 = dot3(rawNormal, centerDirection) >= 0
+      ? rawNormal
+      : [-rawNormal[0], -rawNormal[1], -rawNormal[2]];
     if (dot3(normal, CAMERA) <= 1e-9) return [];
     const polygon = vertices.map(project);
     const depth = vertices.reduce((sum, [x, y, z]) => sum + x - y + z, 0) / vertices.length;
@@ -102,6 +110,7 @@ export const renderFoldedChoice = (
   }).sort((a, b) => a.depth - b.depth);
 
   const points = faces.flatMap(({ polygon }) => polygon);
+  if (points.length === 0) throw new Error("Form-development choice has no visible faces");
   const minX = Math.min(...points.map(([x]) => x));
   const maxX = Math.max(...points.map(([x]) => x));
   const minY = Math.min(...points.map(([, y]) => y));
@@ -111,6 +120,7 @@ export const renderFoldedChoice = (
   return svgDocument({
     viewBox: [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2],
     title,
+    description: "Candidate folded solid rendered from its face geometry",
     children: faces.flatMap(({ face, polygon }) => [
       svgPolygon(polygon, {
         fill: "white",
