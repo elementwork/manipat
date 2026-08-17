@@ -63,7 +63,7 @@ export const validateApertureQuestion = (
   const area = targetPolygon === undefined ? 0 : Math.abs(signedPolygonArea(targetPolygon));
   const vertexCount = targetPolygon?.length ?? 0;
   const targetComplexity = targetSilhouette === undefined ? 0 : complexity(targetSilhouette);
-  const minimumComplexity = ({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8 } as const)[question.difficulty.band];
+  const minimumComplexity = ({ 1: 4, 2: 5, 3: 6, 4: 6, 5: 6 } as const)[question.difficulty.band];
   const checks: ValidationCheck[] = [
     check("choice-count", question.choices.length === 5, { actual: question.choices.length }),
     check("stored-fingerprints", question.choices.every(
