@@ -1,6 +1,58 @@
-import type { FormDevelopmentQuestion } from "./types.js";
+import type { Vec2, Vec3 } from "@manipat/core";
+import type { FormDevelopmentQuestion, NetFace, PolyFace } from "./types.js";
+
+const length2 = (a: Vec2, b: Vec2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+const length3 = (a: Vec3, b: Vec3): number => Math.hypot(
+  b[0] - a[0],
+  b[1] - a[1],
+  b[2] - a[2],
+);
+
+const sorted2dEdgeLengths = ({ polygon }: NetFace): readonly number[] =>
+  polygon.map((point, index) => length2(point, polygon[(index + 1) % polygon.length] ?? point))
+    .sort((a, b) => a - b);
+
+const sorted3dEdgeLengths = (
+  face: PolyFace,
+  vertices: readonly Vec3[],
+): readonly number[] => face.vertexIds.map((vertexId, index) => {
+  const nextId = face.vertexIds[(index + 1) % face.vertexIds.length];
+  const point = vertices[vertexId];
+  const next = nextId === undefined ? undefined : vertices[nextId];
+  return point === undefined || next === undefined ? Number.NaN : length3(point, next);
+}).sort((a, b) => a - b);
+
+const sameLength = (first: number, second: number): boolean => {
+  const scale = Math.max(1, Math.abs(first), Math.abs(second));
+  return Number.isFinite(first) && Number.isFinite(second) && Math.abs(first - second) <= scale * 1e-6;
+};
+
+const faceMatches = (
+  netFace: NetFace,
+  face: PolyFace,
+  vertices: readonly Vec3[],
+): boolean => {
+  const expected = sorted2dEdgeLengths(netFace);
+  const actual = sorted3dEdgeLengths(face, vertices);
+  return expected.length === actual.length
+    && expected.every((value, index) => sameLength(value, actual[index] ?? Number.NaN));
+};
+
+const geometryMatchesNet = (
+  question: FormDevelopmentQuestion,
+  vertices: readonly Vec3[],
+): boolean => question.prompt.net.faces.every((netFace) => {
+  const face = question.prompt.polyhedron.faces.find(({ id }) => id === netFace.faceId);
+  return face !== undefined && faceMatches(netFace, face, vertices);
+});
 
 export const solveFormDevelopmentQuestion = (
   question: FormDevelopmentQuestion,
-): readonly number[] => question.choices.flatMap((choice, index) =>
-  choice.fingerprint === question.prompt.targetFingerprint ? [index] : []);
+): readonly number[] => {
+  if (question.metadata.choiceModel === "dimensional-geometry-v2") {
+    return question.choices.flatMap((choice, index) =>
+      choice.vertices !== undefined && geometryMatchesNet(question, choice.vertices) ? [index] : []);
+  }
+  return question.choices.flatMap((choice, index) =>
+    choice.fingerprint === question.prompt.targetFingerprint ? [index] : []);
+};
