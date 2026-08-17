@@ -50,12 +50,7 @@ export const renderAperturePictorial = (view: OrthographicView): string => {
     title: "Aperture object",
     description: "Deterministic isometric line drawing of the object to pass through an opening",
     children: [
-      ...view.hidden.map(({ a, b }, index) => svgLine([a[0], -a[1]], [b[0], -b[1]], {
-        "data-edge-id": `hidden-${index}`,
-        stroke: "#777",
-        "stroke-dasharray": "3 3",
-        "stroke-width": 1,
-      })),
+      // DAT apertures: only visible edges, no hidden lines
       ...view.visible.map(({ a, b }, index) => svgLine([a[0], -a[1]], [b[0], -b[1]], {
         "data-edge-id": `visible-${index}`,
         stroke: "black",

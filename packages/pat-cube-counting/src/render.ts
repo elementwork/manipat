@@ -26,18 +26,15 @@ const face = (cube: CubeCoordinate, kind: "top" | "right" | "front"): readonly V
 export const renderVoxelStructure = (structure: VoxelStructure): string => {
   const cubes = [...structure.coordinates()].sort((a, b) =>
     (b.x + b.y + b.z) - (a.x + a.y + a.z));
-  const strokeAttrs = { fill: "white", stroke: "black", "stroke-width": 2, "stroke-linejoin": "round" } as const;
+  const topAttrs = { fill: "white", stroke: "black", "stroke-width": 2, "stroke-linejoin": "round" } as const;
+  const rightAttrs = { fill: "#ccc", stroke: "black", "stroke-width": 2, "stroke-linejoin": "round" } as const;
+  const frontAttrs = { fill: "#e0e0e0", stroke: "black", "stroke-width": 2, "stroke-linejoin": "round" } as const;
+  // Render ALL 3 visible faces per cube for clear 3D grid structure
   const polygons = cubes.flatMap((cube) => [
-    !structure.has(cube.x, cube.y, cube.z + 1)
-      ? svgPolygon(face(cube, "top"), strokeAttrs)
-      : undefined,
-    !structure.has(cube.x + 1, cube.y, cube.z)
-      ? svgPolygon(face(cube, "right"), { ...strokeAttrs, fill: "#e8e8e8" })
-      : undefined,
-    !structure.has(cube.x, cube.y - 1, cube.z)
-      ? svgPolygon(face(cube, "front"), { ...strokeAttrs, fill: "#f0f0f0" })
-      : undefined,
-  ].filter((polygon) => polygon !== undefined));
+    svgPolygon(face(cube, "top"), topAttrs),
+    svgPolygon(face(cube, "right"), rightAttrs),
+    svgPolygon(face(cube, "front"), frontAttrs),
+  ]);
   const points = structure.coordinates().flatMap(({ x, y, z }) => [
     project(x, y, z), project(x + 1, y + 1, z + 1),
   ]);
