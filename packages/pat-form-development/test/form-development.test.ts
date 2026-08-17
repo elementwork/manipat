@@ -10,7 +10,7 @@ import {
 } from "../src/index.js";
 
 describe("form development", () => {
-  it("derives closed adjacency and verifies supported irregular nets", () => {
+  it("derives closed adjacency and verifies supported reference nets", () => {
     for (const polyhedron of POLYHEDRA) {
       const adjacency = buildFaceAdjacency(polyhedron);
       expect(adjacency.length).toBeGreaterThanOrEqual(polyhedron.faces.length);
@@ -21,8 +21,9 @@ describe("form development", () => {
     }
   });
 
-  it("generates 2,000 uniquely foldable geometric questions", () => {
+  it("generates 2,000 uniquely foldable, continuously varied geometric questions", () => {
     const polyhedra = new Set<string>();
+    const geometries = new Set<string>();
     for (let index = 0; index < 2_000; index += 1) {
       const question = generateFormDevelopmentQuestion(`form-${index}`, ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5);
       const validation = validateFormDevelopmentQuestion(question);
@@ -32,13 +33,11 @@ describe("form development", () => {
       expect(question.choices.every(({ vertices }) =>
         vertices !== undefined && vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
+      expect(question.metadata.geometryVariation).toBe("continuous-parameters");
       polyhedra.add(question.prompt.polyhedron.id);
+      geometries.add(question.fingerprints.net);
     }
-    expect(polyhedra).toEqual(new Set([
-      "triangular-prism",
-      "square-pyramid",
-      "trapezoidal-prism",
-      "house-prism",
-    ]));
+    expect(polyhedra).toEqual(new Set(["trapezoidal-prism", "house-prism"]));
+    expect(geometries.size).toBeGreaterThan(1_900);
   }, 60_000);
 });
