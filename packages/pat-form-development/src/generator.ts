@@ -3,11 +3,12 @@ import {
   createRandomSource,
   fingerprint64,
   type JsonValue,
+  type RandomSource,
   type Vec3,
 } from "@manipat/core";
 import { buildFaceAdjacency } from "./adjacency.js";
 import { createNet } from "./nets.js";
-import { POLYHEDRA } from "./polyhedra.js";
+import { createHousePrism, createTrapezoidalPrism } from "./polyhedra.js";
 import { renderFoldedChoice, renderNet } from "./render.js";
 import type {
   FormDevelopmentChoice,
@@ -15,6 +16,28 @@ import type {
   LogicalPolyhedron,
 } from "./types.js";
 import { validateFormDevelopmentQuestion } from "./validator.js";
+
+const dimension = (value: number): number => Math.round(value * 1000) / 1000;
+
+const createQuestionPolyhedron = (random: RandomSource): LogicalPolyhedron => {
+  const family = random.fork("family").pick(["trapezoid", "house"] as const);
+  if (family === "trapezoid") {
+    const bottomWidth = dimension(random.fork("bottom-width").float(2.4, 3.2));
+    const topWidth = dimension(random.fork("top-width").float(1.15, bottomWidth - 0.55));
+    return createTrapezoidalPrism({
+      bottomWidth,
+      topWidth,
+      height: dimension(random.fork("height").float(1.45, 2.35)),
+      depth: dimension(random.fork("depth").float(1.55, 2.55)),
+    });
+  }
+  return createHousePrism({
+    width: dimension(random.fork("width").float(2, 2.9)),
+    depth: dimension(random.fork("depth").float(1.55, 2.55)),
+    wallHeight: dimension(random.fork("wall-height").float(0.95, 1.65)),
+    roofHeight: dimension(random.fork("roof-height").float(0.7, 1.35)),
+  });
+};
 
 const centerOf = (vertices: readonly Vec3[]): Vec3 => [
   vertices.reduce((sum, [x]) => sum + x, 0) / vertices.length,
@@ -34,7 +57,7 @@ const scaleAxis = (
 ): readonly Vec3[] => {
   const center = centerOf(vertices);
   return vertices.map((vertex): Vec3 => {
-    const result: Vec3 = [vertex[0], vertex[1], vertex[2]];
+    const result: [number, number, number] = [vertex[0], vertex[1], vertex[2]];
     result[axis] = center[axis] + (vertex[axis] - center[axis]) * factor;
     return result;
   });
@@ -68,8 +91,6 @@ const deformations = (
   vertices: readonly Vec3[],
   difficulty: 1 | 2 | 3 | 4 | 5,
 ): readonly { readonly vertices: readonly Vec3[]; readonly mutation: string }[] => {
-  // Maintain a visible geometric separation even at high difficulty. The
-  // golden choices differ in dimensions/slants rather than microscopic marks.
   const amount = ({ 1: 0.30, 2: 0.27, 3: 0.23, 4: 0.19, 5: 0.16 } as const)[difficulty];
   return [
     { vertices: scaleAxis(vertices, 2, 1 - amount), mutation: "wrong-height" },
@@ -85,7 +106,7 @@ export const generateFormDevelopmentQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): FormDevelopmentQuestion => {
   const random = createRandomSource(seed);
-  const polyhedron = random.fork("polyhedron").pick(POLYHEDRA);
+  const polyhedron = createQuestionPolyhedron(random.fork("polyhedron"));
   const net = createNet(polyhedron);
   const patterns = {};
   const targetFingerprint = choiceFingerprint(polyhedron.id, polyhedron.vertices);
@@ -152,6 +173,7 @@ export const generateFormDevelopmentQuestion = (
     metadata: {
       polyhedronId: polyhedron.id,
       choiceModel: "dimensional-geometry-v2",
+      geometryVariation: "continuous-parameters",
     },
   };
   const validation = validateFormDevelopmentQuestion(base);
