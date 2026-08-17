@@ -167,12 +167,14 @@ export class ApertureGenerator {
     const correctSilhouette = target.silhouette;
     const targetFingerprint = silhouetteFingerprint(correctSilhouette);
 
-    // Keep the pictorial orientation fixed. Random Z spins made the same family
-    // read inconsistently across questions and obscured the intended top-left view.
     const pictorialSpin = 0 as const;
     using pictorialSolid = this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
     const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
-    const pictorialSvg = renderAperturePictorial(createOrthographicView(pictorialMesh, ISOMETRIC_FRAME));
+    const pictorialView = createOrthographicView(pictorialMesh, ISOMETRIC_FRAME, {
+      subdivisions: 24,
+      visibilityRule: "midpoint",
+    });
+    const pictorialSvg = renderAperturePictorial(pictorialView);
 
     const validPrincipalProjections = uniquePrincipal.map(({ silhouette }) => silhouette);
     const distractors = generateApertureDistractors(correctSilhouette, validPrincipalProjections);
