@@ -15,18 +15,25 @@ describe("ApertureGenerator", () => {
     );
   });
 
-  it("generates 1,000 valid, uniquely solvable candidates", async () => {
+  it("generates 1,000 valid, visually separated candidates", async () => {
     const generator = await createApertureGenerator();
     const templates = new Set<string>();
+    let complexTemplateCount = 0;
     for (let index = 0; index < 1_000; index += 1) {
       const question = generator.generate(`phase1-${index}`, ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5);
       const validation = validateApertureQuestion(question);
       expect(validation.passed, `seed phase1-${index}`).toBe(true);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(5);
+      expect(Number(question.metadata.projectionComplexity ?? 0)).toBeGreaterThanOrEqual(
+        question.difficulty.band === 1 ? 4 : question.difficulty.band === 2 ? 5 : 6,
+      );
+      if (question.templateId.startsWith("A1")) complexTemplateCount += 1;
       templates.add(question.templateId);
     }
-    expect(templates.size).toBe(10);
-  }, 60_000);
+    expect(templates.size).toBeGreaterThanOrEqual(12);
+    expect(complexTemplateCount).toBeGreaterThan(250);
+  }, 90_000);
 
   it("rejects a duplicated choice", async () => {
     const generator = await createApertureGenerator();

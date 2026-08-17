@@ -1,4 +1,4 @@
-import type { ValidationCheck } from "@manipat/core";
+import type { ValidationCheck, Vec3 } from "@manipat/core";
 import { verifyNet } from "./nets.js";
 import { solveFormDevelopmentQuestion } from "./solver.js";
 import type {
@@ -7,19 +7,54 @@ import type {
 } from "./types.js";
 
 const check = (id: string, passed: boolean): ValidationCheck => ({ id, passed, severity: "error" });
+const distance = (a: Vec3, b: Vec3): number =>
+  Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+const geometrySeparation = (
+  source: readonly Vec3[],
+  candidate: readonly Vec3[],
+): number => {
+  if (source.length !== candidate.length || source.length === 0) return Number.POSITIVE_INFINITY;
+  const xs = source.map(([x]) => x);
+  const ys = source.map(([, y]) => y);
+  const zs = source.map(([, , z]) => z);
+  const span = Math.max(
+    Math.max(...xs) - Math.min(...xs),
+    Math.max(...ys) - Math.min(...ys),
+    Math.max(...zs) - Math.min(...zs),
+    1e-9,
+  );
+  return Math.max(...source.map((vertex, index) =>
+    distance(vertex, candidate[index] ?? vertex) / span));
+};
 
 export const validateFormDevelopmentQuestion = (
   question: FormDevelopmentQuestion,
 ): FormDevelopmentValidationResult => {
   const net = verifyNet(question.prompt.polyhedron, question.prompt.net);
   const matches = solveFormDevelopmentQuestion(question);
+  const sourceVertices = question.prompt.polyhedron.vertices;
+  const geometricModel = question.metadata.choiceModel === "dimensional-geometry-v2";
+  const choiceVertices = question.choices.map(({ vertices }) => vertices ?? sourceVertices);
+  const separations = choiceVertices.map((vertices) => geometrySeparation(sourceVertices, vertices));
+  let pairwiseSeparated = true;
+  if (geometricModel) {
+    for (let first = 0; first < choiceVertices.length; first += 1) {
+      for (let second = first + 1; second < choiceVertices.length; second += 1) {
+        if (geometrySeparation(choiceVertices[first]!, choiceVertices[second]!) < 0.04) pairwiseSeparated = false;
+      }
+    }
+  }
   const checks = [
     check("valid-net", net.valid),
     check("four-choices", question.choices.length === 4),
+    check("choice-geometry", !geometricModel || question.choices.every(
+      ({ vertices }) => vertices !== undefined && vertices.length === sourceVertices.length)),
     check("unique-choices", new Set(question.choices.map(({ fingerprint }) => fingerprint)).size === 4),
-    // Semantic uniqueness alone is insufficient for PAT: two distinct logical
-    // choices must never collapse to the same rendered picture.
     check("unique-rendered-choices", new Set(question.choices.map(({ svg }) => svg)).size === question.choices.length),
+    check("meaningful-geometric-separation", !geometricModel || question.choices.every((_, index) =>
+      index === question.correctChoiceIndex || (separations[index] ?? 0) >= 0.055)),
+    check("pairwise-geometric-separation", !geometricModel || pairwiseSeparated),
     check("exactly-one-answer", matches.length === 1),
     check("correct-index", matches[0] === question.correctChoiceIndex),
     check("renderable", question.prompt.svg.startsWith("<svg") && question.choices.every(({ svg }) => svg.startsWith("<svg"))),

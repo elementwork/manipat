@@ -16,7 +16,7 @@ import {
   type OrthographicView,
   type ProjectionFrame,
 } from "@manipat/geometry";
-import { APERTURE_TEMPLATES } from "@manipat/object-generator";
+import { TFE_TEMPLATES } from "@manipat/object-generator";
 import { generateTfeDistractors } from "./distractors.js";
 import { renderTfeView, sharedTfeViewBox } from "./render.js";
 import type {
@@ -33,6 +33,7 @@ const VIEW_FRAMES: Readonly<Record<TfeViewName, ProjectionFrame>> = {
   end: RIGHT_END_FRAME,
 };
 const VIEW_NAMES = ["front", "top", "end"] as const;
+const information = (view: OrthographicView): number => view.visible.length + view.hidden.length;
 
 export class TfeGenerator {
   readonly #kernel: GeometryKernel;
@@ -43,7 +44,7 @@ export class TfeGenerator {
 
   public generate(seed: string, difficulty: 1 | 2 | 3 | 4 | 5 = 3): TfeQuestion {
     const random = createRandomSource(seed);
-    const objectTemplate = random.fork("template").pick(APERTURE_TEMPLATES);
+    const objectTemplate = random.fork("template").pick(TFE_TEMPLATES);
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
       seed,
@@ -59,9 +60,14 @@ export class TfeGenerator {
       name,
       createOrthographicView(mesh, VIEW_FRAMES[name]),
     ])) as Record<TfeViewName, OrthographicView>;
-    const missingView = random.fork("missing-view").pick(VIEW_NAMES);
+    const minimumSegments = difficulty <= 1 ? 4 : difficulty <= 3 ? 5 : 6;
+    const eligibleMissingViews = VIEW_NAMES.filter((name) => information(views[name]) >= minimumSegments);
+    const rankedViews = [...VIEW_NAMES].sort((a, b) => information(views[b]) - information(views[a]));
+    const missingPool = eligibleMissingViews.length > 0 ? eligibleMissingViews : rankedViews.slice(0, 1);
+    const missingView = random.fork("missing-view").pick(missingPool);
     const correct = views[missingView];
-    const distractors = generateTfeDistractors(correct);
+    const referenceViews = VIEW_NAMES.filter((name) => name !== missingView).map((name) => views[name]);
+    const distractors = generateTfeDistractors(correct, referenceViews);
     const rawChoices = random.fork("choice-order").shuffle([
       { view: correct },
       ...distractors,
@@ -125,7 +131,11 @@ export class TfeGenerator {
       },
       validation: { passed: false, checks: [] },
       fingerprints: { recipe: recipeFingerprint, view: correct.fingerprint },
-      metadata: { normalization: normalizedResult.transform },
+      metadata: {
+        normalization: normalizedResult.transform,
+        geometryFamily: "tfe-orthogonal-v2",
+        targetInformation: information(correct),
+      },
     };
     const validation = validateTfeQuestion(base);
     if (!validation.passed) {

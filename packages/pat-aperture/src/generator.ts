@@ -17,8 +17,13 @@ import {
   type CanonicalSection2D,
   type GeometryKernel,
   type ProjectionFrame,
+  type SolidHandle,
 } from "@manipat/geometry";
-import { APERTURE_TEMPLATES } from "@manipat/object-generator";
+import {
+  APERTURE_COMPLEX_TEMPLATES,
+  APERTURE_FACETED_TEMPLATES,
+  APERTURE_TEMPLATES,
+} from "@manipat/object-generator";
 import { generateApertureDistractors } from "./distractors.js";
 import {
   renderApertureChoice,
@@ -41,6 +46,16 @@ const ISOMETRIC_FRAME: ProjectionFrame = {
   imageUp: [1 / Math.sqrt(6), 1 / Math.sqrt(6), -2 / Math.sqrt(6)],
 };
 
+const PRINCIPAL_ORIENTATIONS: readonly Vec3[] = [
+  [0, 0, 0],
+  [90, 0, 0],
+  [0, 90, 0],
+];
+const RICH_APERTURE_TEMPLATES = [
+  ...APERTURE_COMPLEX_TEMPLATES,
+  ...APERTURE_FACETED_TEMPLATES,
+] as const;
+
 const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   (count, point, index) => {
     const previous = polygon[(index - 1 + polygon.length) % polygon.length];
@@ -53,14 +68,12 @@ const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   0,
 );
 
-const orientationFor = (seed: string, difficulty: 1 | 2 | 3 | 4 | 5): Vec3 => {
-  const random = createRandomSource(seed).fork("orientation");
-  const maximumTilt = 12 + difficulty * 10;
-  return [
-    Math.round(random.float(8, maximumTilt) * 1000) / 1000,
-    Math.round(random.float(8, maximumTilt) * 1000) / 1000,
-    Math.round(random.float(-25, 25) * 1000) / 1000,
-  ];
+const projectionComplexity = (silhouette: CanonicalSection2D): number => {
+  const polygons = silhouette.polygons;
+  const outer = polygons[0] ?? [];
+  return outer.length
+    + concavityCount(outer) * 2
+    + Math.max(0, polygons.length - 1) * 4;
 };
 
 const difficultyFor = (
@@ -79,8 +92,24 @@ const difficultyFor = (
       requestedBand,
       concavityCount: concavities,
       vertexCount,
+      projectionComplexity: projectionComplexity(silhouette),
     },
   };
+};
+
+const projectionAt = (
+  kernel: GeometryKernel,
+  solid: SolidHandle,
+  orientation: Vec3,
+): CanonicalSection2D => {
+  const isIdentity = orientation[0] === 0 && orientation[1] === 0 && orientation[2] === 0;
+  if (isIdentity) {
+    using section = kernel.projectXY(solid);
+    return canonicalizeSilhouette(kernel.getSection(section));
+  }
+  using rotated = kernel.rotate(solid, orientation);
+  using section = kernel.projectXY(rotated);
+  return canonicalizeSilhouette(kernel.getSection(section));
 };
 
 export class ApertureGenerator {
@@ -95,7 +124,10 @@ export class ApertureGenerator {
     difficulty: 1 | 2 | 3 | 4 | 5 = 3,
   ): ApertureQuestion {
     const rootRandom = createRandomSource(seed);
-    const objectTemplate = rootRandom.fork("template").pick(APERTURE_TEMPLATES);
+    const templatePool = difficulty === 1
+      ? [...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES]
+      : [...RICH_APERTURE_TEMPLATES];
+    const objectTemplate = rootRandom.fork("template").pick(templatePool);
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
       seed,
@@ -109,14 +141,37 @@ export class ApertureGenerator {
 
     const normalizedResult = normalizeSolid(this.#kernel, sourceSolid);
     using normalized = normalizedResult.solid;
-    const orientationDegrees = orientationFor(seed, difficulty);
-    using oriented = this.#kernel.rotate(normalized, orientationDegrees);
-    const orientedMesh = this.#kernel.getMesh(oriented);
-    const pictorialSvg = renderAperturePictorial(createOrthographicView(orientedMesh, ISOMETRIC_FRAME));
-    using projection = this.#kernel.projectXY(oriented);
-    const correctSilhouette = canonicalizeSilhouette(this.#kernel.getSection(projection));
+
+    const principal = PRINCIPAL_ORIENTATIONS.map((orientation) => ({
+      orientation,
+      silhouette: projectionAt(this.#kernel, normalized, orientation),
+    }));
+    const uniquePrincipal = [...new Map(principal.map((candidate) => [
+      silhouetteFingerprint(candidate.silhouette),
+      candidate,
+    ])).values()];
+    if (uniquePrincipal.length === 0) throw new Error("Aperture object produced no principal projection");
+
+    const minimumComplexity = ({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8 } as const)[difficulty];
+    const complexCandidates = uniquePrincipal.filter(({ silhouette }) =>
+      projectionComplexity(silhouette) >= minimumComplexity);
+    const rankedCandidates = [...uniquePrincipal].sort((a, b) =>
+      projectionComplexity(b.silhouette) - projectionComplexity(a.silhouette));
+    const targetPool = complexCandidates.length > 0
+      ? complexCandidates
+      : rankedCandidates.slice(0, 1);
+    const target = rootRandom.fork("target-projection").pick(targetPool);
+    const orientationDegrees = target.orientation;
+    const correctSilhouette = target.silhouette;
     const targetFingerprint = silhouetteFingerprint(correctSilhouette);
-    const distractors = generateApertureDistractors(correctSilhouette);
+
+    const pictorialSpin = rootRandom.fork("pictorial-spin").pick([0, 90, 180, 270] as const);
+    using pictorialSolid = this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
+    const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
+    const pictorialSvg = renderAperturePictorial(createOrthographicView(pictorialMesh, ISOMETRIC_FRAME));
+
+    const validPrincipalProjections = uniquePrincipal.map(({ silhouette }) => silhouette);
+    const distractors = generateApertureDistractors(correctSilhouette, validPrincipalProjections);
     const rawChoices = [
       { silhouette: correctSilhouette, fingerprint: targetFingerprint },
       ...distractors,
@@ -184,7 +239,11 @@ export class ApertureGenerator {
       metadata: {
         normalization: normalizedResult.transform,
         projectionArea: Math.abs(signedPolygonArea(correctSilhouette.polygons[0] ?? [])),
-        mode: "exact-projection-silhouette",
+        projectionComplexity: projectionComplexity(correctSilhouette),
+        mode: "principal-projection-exact-fit-v2",
+        principalProjectionCount: uniquePrincipal.length,
+        pictorialSpin,
+        objectFamily: objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
       },
     };
     const validation = validateApertureQuestion(baseQuestion);

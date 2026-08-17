@@ -13,7 +13,12 @@ export interface PolyFace {
 }
 
 export interface LogicalPolyhedron {
-  readonly id: "cube" | "triangular-prism" | "square-pyramid";
+  readonly id:
+    | "cube"
+    | "triangular-prism"
+    | "square-pyramid"
+    | "trapezoidal-prism"
+    | "house-prism";
   readonly vertices: readonly Vec3[];
   readonly faces: readonly PolyFace[];
 }
@@ -50,6 +55,10 @@ export interface FormDevelopmentPrompt {
 
 export interface FormDevelopmentChoice {
   readonly polyhedronId: LogicalPolyhedron["id"];
+  /** Present on v2 dimensional-geometry choices; v1 marking questions omit it. */
+  readonly vertices?: readonly Vec3[];
+  /** Presentation-only rotation around the vertical axis; solver truth ignores it. */
+  readonly viewQuarterTurns?: 0 | 1 | 2 | 3;
   readonly patterns: Readonly<Record<string, FacePattern>>;
   readonly chirality: "original" | "mirrored";
   readonly fingerprint: string;
