@@ -68,10 +68,10 @@ const validFold = (state: FoldState, instruction: FoldInstruction): boolean => {
   return occupiedPositions(next) < occupiedPositions(state);
 };
 
-const createFoldProgram = (
+const tryCreateFoldProgram = (
   random: RandomSource,
   difficulty: 1 | 2 | 3 | 4 | 5,
-): readonly FoldInstruction[] => {
+): readonly FoldInstruction[] | undefined => {
   const count = foldCountFor(random, difficulty);
   let state = createInitialFoldState();
   const usedLines = new Set<string>();
@@ -79,13 +79,37 @@ const createFoldProgram = (
   for (let step = 0; step < count; step += 1) {
     const candidates = FOLD_POOL.filter((candidate) =>
       !usedLines.has(lineKey(candidate)) && validFold(state, candidate));
-    if (candidates.length === 0) throw new Error("No valid fold remains for requested paper-folding difficulty");
+    if (candidates.length === 0) return undefined;
     const selected = random.fork(`fold-${step}`).pick(candidates);
     folds.push(selected);
     usedLines.add(lineKey(selected));
     state = applyFold(state, selected);
   }
   return folds;
+};
+
+interface SelectedFoldProgram {
+  readonly folds: readonly FoldInstruction[];
+  readonly folded: FoldState;
+  readonly locations: readonly Vec2[];
+}
+
+const selectFoldProgram = (
+  random: RandomSource,
+  difficulty: 1 | 2 | 3 | 4 | 5,
+): SelectedFoldProgram => {
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const folds = tryCreateFoldProgram(random.fork(`program-${attempt}`), difficulty);
+    if (folds === undefined) continue;
+    const folded = folds.reduce(applyFold, createInitialFoldState());
+    const locations = [...new Map(folded.layers.map(({ currentCenter }) => [
+      pointKey(currentCenter),
+      currentCenter,
+    ])).values()].filter((point) => folds.every(({ line }) =>
+      Math.abs(signedDistanceFromFold(point, line)) > 0.1));
+    if (locations.length > 0) return { folds, folded, locations };
+  }
+  throw new Error("Could not construct a state-valid fold program with an unambiguous punch location");
 };
 
 const patternFingerprint = (holes: readonly Vec2[]): string =>
@@ -177,14 +201,8 @@ export const generatePaperFoldingQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): PaperFoldingQuestion => {
   const random = createRandomSource(seed);
-  const folds = createFoldProgram(random.fork("folds"), difficulty);
+  const { folds, locations } = selectFoldProgram(random.fork("folds"), difficulty);
   const folded = folds.reduce(applyFold, createInitialFoldState());
-  const locations = [...new Map(folded.layers.map(({ currentCenter }) => [
-    pointKey(currentCenter),
-    currentCenter,
-  ])).values()].filter((point) => folds.every(({ line }) =>
-    Math.abs(signedDistanceFromFold(point, line)) > 0.1));
-  if (locations.length === 0) throw new Error("Fold program has no unambiguous punch locations");
   const punchCount = difficulty >= 4 && locations.length > 1 ? 2 : 1;
   const punches = random.fork("punches").shuffle(locations).slice(0, punchCount);
   const punched = punchState(folded, punches);
