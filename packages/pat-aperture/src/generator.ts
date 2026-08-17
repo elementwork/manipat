@@ -124,9 +124,9 @@ export class ApertureGenerator {
     difficulty: 1 | 2 | 3 | 4 | 5 = 3,
   ): ApertureQuestion {
     const rootRandom = createRandomSource(seed);
-    const templatePool = difficulty >= 3
-      ? [...RICH_APERTURE_TEMPLATES, ...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES]
-      : [...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES];
+    const templatePool = difficulty === 1
+      ? [...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES]
+      : [...RICH_APERTURE_TEMPLATES];
     const objectTemplate = rootRandom.fork("template").pick(templatePool);
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
@@ -159,7 +159,7 @@ export class ApertureGenerator {
       projectionComplexity(b.silhouette) - projectionComplexity(a.silhouette));
     const targetPool = complexCandidates.length > 0
       ? complexCandidates
-      : rankedCandidates.slice(0, Math.min(2, rankedCandidates.length));
+      : rankedCandidates.slice(0, 1);
     const target = rootRandom.fork("target-projection").pick(targetPool);
     const orientationDegrees = target.orientation;
     const correctSilhouette = target.silhouette;
