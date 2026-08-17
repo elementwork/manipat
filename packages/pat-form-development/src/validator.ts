@@ -17,6 +17,9 @@ export const validateFormDevelopmentQuestion = (
     check("valid-net", net.valid),
     check("four-choices", question.choices.length === 4),
     check("unique-choices", new Set(question.choices.map(({ fingerprint }) => fingerprint)).size === 4),
+    // Semantic uniqueness alone is insufficient for PAT: two distinct logical
+    // choices must never collapse to the same rendered picture.
+    check("unique-rendered-choices", new Set(question.choices.map(({ svg }) => svg)).size === question.choices.length),
     check("exactly-one-answer", matches.length === 1),
     check("correct-index", matches[0] === question.correctChoiceIndex),
     check("renderable", question.prompt.svg.startsWith("<svg") && question.choices.every(({ svg }) => svg.startsWith("<svg"))),
