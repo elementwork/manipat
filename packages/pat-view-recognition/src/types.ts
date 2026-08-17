@@ -10,6 +10,7 @@ export interface TfeDiagram {
 }
 
 export type TfeDistractorMutation =
+  | "wrong-projection"
   | "move-line"
   | "shorten-line"
   | "visibility-flip"
