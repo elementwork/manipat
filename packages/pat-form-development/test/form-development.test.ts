@@ -29,7 +29,8 @@ describe("form development", () => {
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
       expect(validation.passed).toBe(true);
       expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(4);
-      expect(question.choices.every(({ vertices }) => vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
+      expect(question.choices.every(({ vertices }) =>
+        vertices !== undefined && vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
       polyhedra.add(question.prompt.polyhedron.id);
     }
