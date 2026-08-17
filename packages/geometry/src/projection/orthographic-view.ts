@@ -175,8 +175,11 @@ export const createOrthographicView = (
       const end = pointAt(edge.vertices.a, edge.vertices.b, (part + 1) / subdivisions);
       const projected = canonicalSegment({ a: projectPoint(start, frame), b: projectPoint(end, frame) });
       if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) <= EPS.projection) continue;
-      const midpoint = pointAt(start, end, 0.5);
-      (isVisible(mesh, midpoint, frame.viewDirection, rayLength) ? visible : hidden).push(projected);
+      // Sample multiple points: endpoints + interior samples
+      // An edge is visible if ANY sample point is visible (handles curved surfaces)
+      const sampleTs = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9];
+      const edgeVisible = sampleTs.some((t) => isVisible(mesh, pointAt(start, end, t), frame.viewDirection, rayLength));
+      (edgeVisible ? visible : hidden).push(projected);
     }
   }
   return canonicalizeOrthographicView(frame, visible, hidden);
