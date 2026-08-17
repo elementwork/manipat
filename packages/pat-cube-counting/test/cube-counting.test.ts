@@ -16,11 +16,23 @@ describe("cube counting", () => {
     expect(single.exposedFaceCount(0, 0, 1)).toBe(5);
   });
 
-  it("renders one cube as three closed camera-facing faces", () => {
+  it("renders one cube with the front vertical corner below the top diamond", () => {
     const single = new VoxelStructure([{ x: 0, y: 0, z: 0 }]);
     const svg = renderVoxelStructure(single);
     expect(svg.match(/<polygon\b/gu)).toHaveLength(3);
+    // project(1, 1, 0) = (0, 50): this is the lower front corner shared by
+    // x-max/y-max. The old rear-face renderer never reached this point.
+    expect(svg).toContain("0,50");
     expect(svg).toContain("Closed isometric stack");
+  });
+
+  it("culls a shared side while retaining the closed surface of adjacent cubes", () => {
+    const pair = new VoxelStructure([
+      { x: 0, y: 0, z: 0 },
+      { x: 1, y: 0, z: 0 },
+    ]);
+    const svg = renderVoxelStructure(pair);
+    expect(svg.match(/<polygon\b/gu)).toHaveLength(5);
   });
 
   it("generates sparse shared figures with three valid questions", () => {

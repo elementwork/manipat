@@ -19,13 +19,22 @@ describe("paper folding", () => {
     }
   });
 
-  it("renders fold panels at the same intrinsic square size as choices", () => {
+  it("renders fold frames as solid current paper plus dotted folded-away paper", () => {
     const question = generatePaperFoldingQuestion("fold-render-regression", 4);
+    expect(question.prompt.stepSvgs).toHaveLength(question.prompt.folds.length + 1);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
     expect(question.choices.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
+
+    const foldFrames = question.prompt.stepSvgs.slice(0, -1);
+    expect(foldFrames.every((svg) => svg.includes("data-folded-away"))).toBe(true);
+    expect(foldFrames.every((svg) => svg.includes("stroke-dasharray"))).toBe(true);
+    expect(foldFrames.every((svg) => !svg.includes("data-fold-id"))).toBe(true);
+    expect(foldFrames.every((svg) => !svg.includes("<line"))).toBe(true);
+
     const finalStep = question.prompt.stepSvgs.at(-1)!;
     expect(finalStep).toContain("<polygon");
     expect(finalStep).toContain("<circle");
+    expect(finalStep).not.toContain("data-folded-away");
     expect(finalStep).not.toContain("stroke-dasharray");
   });
 
