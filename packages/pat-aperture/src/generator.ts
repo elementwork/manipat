@@ -17,6 +17,7 @@ import {
   type CanonicalSection2D,
   type GeometryKernel,
   type ProjectionFrame,
+  type SolidHandle,
 } from "@manipat/geometry";
 import { APERTURE_TEMPLATES } from "@manipat/object-generator";
 import { generateApertureDistractors } from "./distractors.js";
@@ -41,6 +42,12 @@ const ISOMETRIC_FRAME: ProjectionFrame = {
   imageUp: [1 / Math.sqrt(6), 1 / Math.sqrt(6), -2 / Math.sqrt(6)],
 };
 
+const PRINCIPAL_ORIENTATIONS: readonly Vec3[] = [
+  [0, 0, 0],
+  [90, 0, 0],
+  [0, 90, 0],
+];
+
 const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   (count, point, index) => {
     const previous = polygon[(index - 1 + polygon.length) % polygon.length];
@@ -52,16 +59,6 @@ const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   },
   0,
 );
-
-const orientationFor = (seed: string, difficulty: 1 | 2 | 3 | 4 | 5): Vec3 => {
-  const random = createRandomSource(seed).fork("orientation");
-  const maximumTilt = 12 + difficulty * 10;
-  return [
-    Math.round(random.float(8, maximumTilt) * 1000) / 1000,
-    Math.round(random.float(8, maximumTilt) * 1000) / 1000,
-    Math.round(random.float(-25, 25) * 1000) / 1000,
-  ];
-};
 
 const difficultyFor = (
   silhouette: CanonicalSection2D,
@@ -81,6 +78,21 @@ const difficultyFor = (
       vertexCount,
     },
   };
+};
+
+const projectionAt = (
+  kernel: GeometryKernel,
+  solid: SolidHandle,
+  orientation: Vec3,
+): CanonicalSection2D => {
+  const isIdentity = orientation[0] === 0 && orientation[1] === 0 && orientation[2] === 0;
+  if (isIdentity) {
+    using section = kernel.projectXY(solid);
+    return canonicalizeSilhouette(kernel.getSection(section));
+  }
+  using rotated = kernel.rotate(solid, orientation);
+  using section = kernel.projectXY(rotated);
+  return canonicalizeSilhouette(kernel.getSection(section));
 };
 
 export class ApertureGenerator {
@@ -109,14 +121,33 @@ export class ApertureGenerator {
 
     const normalizedResult = normalizeSolid(this.#kernel, sourceSolid);
     using normalized = normalizedResult.solid;
-    const orientationDegrees = orientationFor(seed, difficulty);
-    using oriented = this.#kernel.rotate(normalized, orientationDegrees);
-    const orientedMesh = this.#kernel.getMesh(oriented);
-    const pictorialSvg = renderAperturePictorial(createOrthographicView(orientedMesh, ISOMETRIC_FRAME));
-    using projection = this.#kernel.projectXY(oriented);
-    const correctSilhouette = canonicalizeSilhouette(this.#kernel.getSection(projection));
+
+    const principal = PRINCIPAL_ORIENTATIONS.map((orientation) => ({
+      orientation,
+      silhouette: projectionAt(this.#kernel, normalized, orientation),
+    }));
+    const uniquePrincipal = [...new Map(principal.map((candidate) => [
+      silhouetteFingerprint(candidate.silhouette),
+      candidate,
+    ])).values()];
+    if (uniquePrincipal.length === 0) throw new Error("Aperture object produced no principal projection");
+
+    const target = rootRandom.fork("target-projection").pick(uniquePrincipal);
+    const orientationDegrees = target.orientation;
+    const correctSilhouette = target.silhouette;
     const targetFingerprint = silhouetteFingerprint(correctSilhouette);
-    const distractors = generateApertureDistractors(correctSilhouette);
+
+    // The object illustration is a stable pictorial/isometric drawing. A small
+    // discrete spin gives variety while preserving readable feature alignment.
+    const pictorialSpin = rootRandom.fork("pictorial-spin").pick([0, 90, 180, 270] as const);
+    using pictorialSolid = pictorialSpin === 0
+      ? this.#kernel.rotate(normalized, [0, 0, 0])
+      : this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
+    const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
+    const pictorialSvg = renderAperturePictorial(createOrthographicView(pictorialMesh, ISOMETRIC_FRAME));
+
+    const validPrincipalProjections = uniquePrincipal.map(({ silhouette }) => silhouette);
+    const distractors = generateApertureDistractors(correctSilhouette, validPrincipalProjections);
     const rawChoices = [
       { silhouette: correctSilhouette, fingerprint: targetFingerprint },
       ...distractors,
@@ -184,7 +215,9 @@ export class ApertureGenerator {
       metadata: {
         normalization: normalizedResult.transform,
         projectionArea: Math.abs(signedPolygonArea(correctSilhouette.polygons[0] ?? [])),
-        mode: "exact-projection-silhouette",
+        mode: "principal-projection-exact-fit-v2",
+        principalProjectionCount: uniquePrincipal.length,
+        pictorialSpin,
       },
     };
     const validation = validateApertureQuestion(baseQuestion);
