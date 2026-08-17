@@ -19,6 +19,16 @@ describe("paper folding", () => {
     }
   });
 
+  it("renders fold panels at the same intrinsic square size as choices", () => {
+    const question = generatePaperFoldingQuestion("fold-render-regression", 4);
+    expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
+    expect(question.choices.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
+    const finalStep = question.prompt.stepSvgs.at(-1)!;
+    expect(finalStep).toContain("<polygon");
+    expect(finalStep).toContain("<circle");
+    expect(finalStep).not.toContain("stroke-dasharray");
+  });
+
   it("generates 2,000 deterministic, uniquely solvable questions", () => {
     for (let index = 0; index < 2_000; index += 1) {
       const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;

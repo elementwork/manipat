@@ -7,7 +7,6 @@ const gridLines = () => Array.from({ length: 5 }, (_, index) => [
   svgLine([0, index], [4, index], { stroke: "#999", "stroke-width": 0.04 }),
 ]).flat();
 
-/** Reflect a point across a line defined by point + unit direction. */
 const reflectPoint = (pt: Vec2, linePoint: Vec2, lineDir: Vec2): Vec2 => {
   const dx = pt[0] - linePoint[0];
   const dy = pt[1] - linePoint[1];
@@ -17,7 +16,6 @@ const reflectPoint = (pt: Vec2, linePoint: Vec2, lineDir: Vec2): Vec2 => {
   return [pt[0] - 2 * perpX, pt[1] - 2 * perpY];
 };
 
-/** Clip polygon to one side of a line. Sutherland-Hodgman style. */
 const clipPolygon = (polygon: readonly Vec2[], linePoint: Vec2, lineDir: Vec2, keepPositive: boolean): Vec2[] => {
   if (polygon.length < 3) return [];
   const result: Vec2[] = [];
@@ -48,11 +46,6 @@ const clipPolygon = (polygon: readonly Vec2[], linePoint: Vec2, lineDir: Vec2, k
 const cross = (o: Vec2, a: Vec2, b: Vec2): number =>
   (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
 
-/**
- * Fold steps used by the generator are convex clips. Rebuilding the boundary
- * from the convex hull avoids the self-intersecting polygon produced by simply
- * concatenating the staying and reflected vertex lists.
- */
 const convexHull = (points: readonly Vec2[]): Vec2[] => {
   const unique = [...new Map(points.map((point) => [`${point[0].toFixed(9)},${point[1].toFixed(9)}`, point] as const)).values()]
     .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -72,38 +65,71 @@ const convexHull = (points: readonly Vec2[]): Vec2[] => {
   return [...lower, ...upper];
 };
 
-/** Compute a valid folded outline after applying folds up to `step`. */
+const polygonArea = (polygon: readonly Vec2[]): number => Math.abs(polygon.reduce((sum, point, index) => {
+  const next = polygon[(index + 1) % polygon.length];
+  return next === undefined ? sum : sum + point[0] * next[1] - next[0] * point[1];
+}, 0) / 2);
+
+/** Compute the visible occupied paper outline after completed folds. */
 const computeFoldedPolygon = (folds: readonly FoldInstruction[], step: number): Vec2[] => {
   let polygon: Vec2[] = [[0, 0], [4, 0], [4, 4], [0, 4]];
   for (let i = 0; i < step; i += 1) {
     const fold = folds[i]!;
-    const lp = fold.line.point;
-    const ld = fold.line.unitDirection;
     const movingSide = fold.movingSide === 1;
-    const movingPart = clipPolygon(polygon, lp, ld, movingSide);
-    const stayingPart = clipPolygon(polygon, lp, ld, !movingSide);
-    const reflected = movingPart.map((point) => reflectPoint(point, lp, ld));
-    polygon = convexHull([...stayingPart, ...reflected]);
+    const movingPart = clipPolygon(polygon, fold.line.point, fold.line.unitDirection, movingSide);
+    const stayingPart = clipPolygon(polygon, fold.line.point, fold.line.unitDirection, !movingSide);
+    const reflected = movingPart.map((point) => reflectPoint(point, fold.line.point, fold.line.unitDirection));
+    const next = convexHull([...stayingPart, ...reflected]);
+    // A valid fold always leaves finite paper area. Preserve the previous valid
+    // outline if floating-point clipping ever collapses the display geometry.
+    if (next.length >= 3 && polygonArea(next) > 1e-4) polygon = next;
   }
   return polygon;
 };
 
-/** Get fold-line endpoints constrained to the current folded outline bounds. */
-const foldLineEndpoints = (fold: FoldInstruction, polygon: readonly Vec2[]): readonly [Vec2, Vec2] => {
-  const lp = fold.line.point;
-  const ld = fold.line.unitDirection;
-  const extent = 6;
-  const a: Vec2 = [lp[0] - ld[0] * extent, lp[1] - ld[1] * extent];
-  const b: Vec2 = [lp[0] + ld[0] * extent, lp[1] + ld[1] * extent];
-  const minX = Math.min(...polygon.map((point) => point[0]));
-  const maxX = Math.max(...polygon.map((point) => point[0]));
-  const minY = Math.min(...polygon.map((point) => point[1]));
-  const maxY = Math.max(...polygon.map((point) => point[1]));
-  const clamp = (value: Vec2): Vec2 => [
-    Math.max(minX, Math.min(maxX, value[0])),
-    Math.max(minY, Math.min(maxY, value[1])),
-  ];
-  return [clamp(a), clamp(b)];
+const lineIntersection = (
+  linePoint: Vec2,
+  lineDir: Vec2,
+  a: Vec2,
+  b: Vec2,
+): Vec2 | undefined => {
+  const edge: Vec2 = [b[0] - a[0], b[1] - a[1]];
+  const denominator = lineDir[0] * edge[1] - lineDir[1] * edge[0];
+  if (Math.abs(denominator) <= 1e-9) return undefined;
+  const delta: Vec2 = [a[0] - linePoint[0], a[1] - linePoint[1]];
+  const edgeT = (delta[0] * lineDir[1] - delta[1] * lineDir[0]) / denominator;
+  if (edgeT < -1e-9 || edgeT > 1 + 1e-9) return undefined;
+  return [a[0] + edge[0] * edgeT, a[1] + edge[1] * edgeT];
+};
+
+const foldLineEndpoints = (
+  fold: FoldInstruction,
+  polygon: readonly Vec2[],
+): readonly [Vec2, Vec2] | undefined => {
+  const intersections: Vec2[] = [];
+  for (let index = 0; index < polygon.length; index += 1) {
+    const a = polygon[index];
+    const b = polygon[(index + 1) % polygon.length];
+    if (a === undefined || b === undefined) continue;
+    const point = lineIntersection(fold.line.point, fold.line.unitDirection, a, b);
+    if (point !== undefined && !intersections.some((existing) =>
+      Math.hypot(existing[0] - point[0], existing[1] - point[1]) < 1e-6)) intersections.push(point);
+  }
+  if (intersections.length < 2) return undefined;
+  let best: readonly [Vec2, Vec2] = [intersections[0]!, intersections[1]!];
+  let bestDistance = Math.hypot(best[1][0] - best[0][0], best[1][1] - best[0][1]);
+  for (let first = 0; first < intersections.length; first += 1) {
+    for (let second = first + 1; second < intersections.length; second += 1) {
+      const a = intersections[first]!;
+      const b = intersections[second]!;
+      const distance = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (distance > bestDistance) {
+        best = [a, b];
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
 };
 
 export const renderHolePattern = (holes: readonly Vec2[], title: string): string => {
@@ -130,43 +156,42 @@ export const renderHolePattern = (holes: readonly Vec2[], title: string): string
   });
 };
 
-/** Render one DAT-style fold state; the final state shows an outline punch. */
+/**
+ * Render one DAT-style fold state. A pre-fold panel shows only the next dashed
+ * fold line; completed fold lines are omitted. The last panel shows the actual
+ * folded paper with the punch and no ghost outline of the original sheet.
+ */
 export const renderFoldStep = (
   folds: readonly FoldInstruction[],
   punches: readonly Vec2[],
   step: number,
 ): string => {
-  const originalBoundary: Vec2[] = [[0, 0], [4, 0], [4, 4], [0, 4]];
   const foldedPolygon = computeFoldedPolygon(folds, step);
-  const foldLines = folds.slice(0, step).map((fold) => {
-    const [a, b] = foldLineEndpoints(fold, foldedPolygon);
-    return svgLine(a, b, {
-      "data-fold-id": fold.id,
+  const nextFold = folds[step];
+  const endpoints = nextFold === undefined ? undefined : foldLineEndpoints(nextFold, foldedPolygon);
+  const foldLine = nextFold === undefined || endpoints === undefined
+    ? []
+    : [svgLine(endpoints[0], endpoints[1], {
+      "data-fold-id": nextFold.id,
       stroke: "black",
-      "stroke-width": 0.06,
-    });
-  });
+      "stroke-dasharray": "0.18 0.12",
+      "stroke-width": 0.055,
+    })];
   const punchCircles = step === folds.length
     ? punches.map((point) => svgCircle(point, 0.16, { fill: "white", stroke: "black", "stroke-width": 0.07 }))
     : [];
 
   return svgDocument({
-    viewBox: [-0.3, -0.3, 4.6, 4.6],
+    viewBox: [-0.2, -0.2, 4.4, 4.4],
     title: `Paper folding step ${step}`,
     children: [
-      svgPolygon(originalBoundary, {
-        fill: "none",
-        stroke: "#999",
-        "stroke-dasharray": "0.2 0.15",
-        "stroke-width": 0.06,
-      }),
       svgPolygon(foldedPolygon, {
         fill: "white",
         stroke: "black",
         "stroke-width": 0.08,
         "stroke-linejoin": "round",
       }),
-      ...foldLines,
+      ...foldLine,
       ...punchCircles,
     ],
   });

@@ -33,6 +33,8 @@ describe("form development", () => {
       expect(new Set(question.choices.map(({ viewQuarterTurns }) => viewQuarterTurns)).size).toBe(4);
       expect(question.choices.every(({ vertices }) =>
         vertices !== undefined && vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
+      expect(question.choices.every(({ svg }) =>
+        (svg.match(/<polygon\b/gu)?.length ?? 0) >= question.prompt.polyhedron.faces.length)).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
       expect(question.metadata.geometryVariation).toBe("continuous-parameters");
       polyhedra.add(question.prompt.polyhedron.id);
