@@ -25,6 +25,17 @@ const VERTICAL: FoldInstruction = { id: "vertical", line: { point: [2, 0], unitD
 const HORIZONTAL: FoldInstruction = { id: "horizontal", line: { point: [0, 2], unitDirection: [1, 0] }, movingSide: 1 };
 const DIAGONAL: FoldInstruction = { id: "diagonal", line: { point: [0, 0], unitDirection: [SQRT_HALF, SQRT_HALF] }, movingSide: 1 };
 const ANTI_DIAGONAL: FoldInstruction = { id: "anti-diagonal", line: { point: [0, 4], unitDirection: [SQRT_HALF, -SQRT_HALF] }, movingSide: 1 };
+
+const ONE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
+  [VERTICAL], [HORIZONTAL], [DIAGONAL], [ANTI_DIAGONAL],
+];
+const TWO_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
+  [VERTICAL, HORIZONTAL], [HORIZONTAL, VERTICAL],
+  [VERTICAL, DIAGONAL], [VERTICAL, ANTI_DIAGONAL],
+  [HORIZONTAL, DIAGONAL], [HORIZONTAL, ANTI_DIAGONAL],
+  [DIAGONAL, VERTICAL], [DIAGONAL, HORIZONTAL],
+  [ANTI_DIAGONAL, VERTICAL], [ANTI_DIAGONAL, HORIZONTAL],
+];
 const THREE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
   [VERTICAL, HORIZONTAL, DIAGONAL], [VERTICAL, HORIZONTAL, ANTI_DIAGONAL],
   [VERTICAL, DIAGONAL, HORIZONTAL], [VERTICAL, DIAGONAL, ANTI_DIAGONAL],
@@ -39,43 +50,19 @@ const THREE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
   [ANTI_DIAGONAL, HORIZONTAL, VERTICAL], [ANTI_DIAGONAL, HORIZONTAL, DIAGONAL],
   [ANTI_DIAGONAL, DIAGONAL, VERTICAL], [ANTI_DIAGONAL, DIAGONAL, HORIZONTAL],
 ];
-const FOUR_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
-  [VERTICAL, HORIZONTAL, DIAGONAL, ANTI_DIAGONAL],
-  [VERTICAL, HORIZONTAL, ANTI_DIAGONAL, DIAGONAL],
-  [VERTICAL, DIAGONAL, HORIZONTAL, ANTI_DIAGONAL],
-  [VERTICAL, DIAGONAL, ANTI_DIAGONAL, HORIZONTAL],
-  [VERTICAL, ANTI_DIAGONAL, HORIZONTAL, DIAGONAL],
-  [VERTICAL, ANTI_DIAGONAL, DIAGONAL, HORIZONTAL],
-  [HORIZONTAL, VERTICAL, DIAGONAL, ANTI_DIAGONAL],
-  [HORIZONTAL, VERTICAL, ANTI_DIAGONAL, DIAGONAL],
-  [HORIZONTAL, DIAGONAL, VERTICAL, ANTI_DIAGONAL],
-  [HORIZONTAL, DIAGONAL, ANTI_DIAGONAL, VERTICAL],
-  [HORIZONTAL, ANTI_DIAGONAL, VERTICAL, DIAGONAL],
-  [HORIZONTAL, ANTI_DIAGONAL, DIAGONAL, VERTICAL],
-  [DIAGONAL, VERTICAL, HORIZONTAL, ANTI_DIAGONAL],
-  [DIAGONAL, VERTICAL, ANTI_DIAGONAL, HORIZONTAL],
-  [DIAGONAL, HORIZONTAL, VERTICAL, ANTI_DIAGONAL],
-  [DIAGONAL, HORIZONTAL, ANTI_DIAGONAL, VERTICAL],
-  [DIAGONAL, ANTI_DIAGONAL, VERTICAL, HORIZONTAL],
-  [DIAGONAL, ANTI_DIAGONAL, HORIZONTAL, VERTICAL],
-  [ANTI_DIAGONAL, VERTICAL, HORIZONTAL, DIAGONAL],
-  [ANTI_DIAGONAL, VERTICAL, DIAGONAL, HORIZONTAL],
-  [ANTI_DIAGONAL, HORIZONTAL, VERTICAL, DIAGONAL],
-  [ANTI_DIAGONAL, HORIZONTAL, DIAGONAL, VERTICAL],
-  [ANTI_DIAGONAL, DIAGONAL, VERTICAL, HORIZONTAL],
-  [ANTI_DIAGONAL, DIAGONAL, HORIZONTAL, VERTICAL],
-];
-const FOLD_CYCLE: readonly FoldInstruction[] = [VERTICAL, HORIZONTAL, DIAGONAL, ANTI_DIAGONAL];
-const FIVE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] =
-  FOUR_FOLD_PROGRAMS.map((program, index) => [...program, FOLD_CYCLE[index % 4]!]);
-const PROGRAMS: readonly (readonly FoldInstruction[])[] = [
-  [VERTICAL], [HORIZONTAL], [DIAGONAL], [ANTI_DIAGONAL],
-  [VERTICAL, HORIZONTAL], [HORIZONTAL, VERTICAL],
-  [VERTICAL, DIAGONAL], [HORIZONTAL, ANTI_DIAGONAL],
-  ...THREE_FOLD_PROGRAMS,
-  ...FOUR_FOLD_PROGRAMS,
-  ...FIVE_FOLD_PROGRAMS,
-];
+
+const programsForDifficulty = (difficulty: 1 | 2 | 3 | 4 | 5): readonly (readonly FoldInstruction[])[] => {
+  switch (difficulty) {
+    case 1: return [...ONE_FOLD_PROGRAMS, ...TWO_FOLD_PROGRAMS];
+    case 2: return TWO_FOLD_PROGRAMS;
+    case 3: return [...TWO_FOLD_PROGRAMS, ...THREE_FOLD_PROGRAMS];
+    case 4:
+    case 5:
+      return THREE_FOLD_PROGRAMS;
+    default:
+      return difficulty satisfies never;
+  }
+};
 
 const patternFingerprint = (holes: readonly Vec2[]): string =>
   fingerprint64(canonicalStringify(holes as unknown as JsonValue));
@@ -126,11 +113,9 @@ export const generatePaperFoldingQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): PaperFoldingQuestion => {
   const random = createRandomSource(seed);
-  // difficulty controls fold count range: 1→1-2, 2→2-3, 3→3-4, 4→4-5, 5→5
-  const minFolds = Math.max(1, difficulty);
-  const maxFolds = Math.min(5, difficulty + 1);
-  const eligible = PROGRAMS.filter((program) => program.length >= minFolds && program.length <= maxFolds);
-  const folds = random.fork("folds").pick(eligible);
+  // DAT-style grammar: one to three folds. Higher difficulty increases
+  // diagonal combinations, punch count and resulting hole complexity.
+  const folds = random.fork("folds").pick(programsForDifficulty(difficulty));
   const folded = folds.reduce(applyFold, createInitialFoldState());
   const locations = [...new Map(folded.layers.map(({ currentCenter }) => [
     `${currentCenter[0]},${currentCenter[1]}`,
@@ -184,7 +169,7 @@ export const generatePaperFoldingQuestion = (
     },
     difficulty: {
       raw: folds.length * 10 + punches.length * 3 + correctHoles.length,
-      normalized: Math.min(1, (folds.length * 10 + punches.length * 3 + correctHoles.length) / 70),
+      normalized: Math.min(1, (folds.length * 10 + punches.length * 3 + correctHoles.length) / 45),
       band: difficulty,
       components: { foldCount: folds.length, punchCount: punches.length, holeCount: correctHoles.length },
     },
