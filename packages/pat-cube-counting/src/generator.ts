@@ -48,13 +48,7 @@ const connectedFootprint = (
   return [...columns.values()].sort((a, b) => a.y - b.y || a.x - b.x);
 };
 
-/**
- * Build a sparse, connected DAT-style cube assembly.
- *
- * Real cube-counting figures are irregular assemblies with gaps, short runs and
- * a few towers. A dense heightmap creates a terrain silhouette and removes the
- * hidden-support reasoning the subsection is intended to test.
- */
+/** Build a sparse, connected DAT-style cube assembly with short runs and towers. */
 const buildStructure = (seed: string, difficulty: 1 | 2 | 3 | 4 | 5): VoxelStructure => {
   const random = createRandomSource(seed);
   const side = difficulty >= 4 ? 5 : 4;
@@ -84,6 +78,64 @@ const buildStructure = (seed: string, difficulty: 1 | 2 | 3 | 4 | 5): VoxelStruc
   return structure;
 };
 
+const footprintMetrics = (structure: VoxelStructure): {
+  readonly columnCount: number;
+  readonly boundingArea: number;
+  readonly density: number;
+  readonly distinctHeights: number;
+} => {
+  const heights = new Map<string, number>();
+  for (const { x, y, z } of structure.coordinates()) {
+    const key = `${x},${y}`;
+    heights.set(key, Math.max(heights.get(key) ?? 0, z + 1));
+  }
+  const columns = [...heights.keys()].map((key) => {
+    const [x = 0, y = 0] = key.split(",").map(Number);
+    return { x, y };
+  });
+  const minX = Math.min(...columns.map(({ x }) => x));
+  const maxX = Math.max(...columns.map(({ x }) => x));
+  const minY = Math.min(...columns.map(({ y }) => y));
+  const maxY = Math.max(...columns.map(({ y }) => y));
+  const boundingArea = (maxX - minX + 1) * (maxY - minY + 1);
+  return {
+    columnCount: columns.length,
+    boundingArea,
+    density: columns.length / Math.max(1, boundingArea),
+    distinctHeights: new Set(heights.values()).size,
+  };
+};
+
+const examLikeStructure = (structure: VoxelStructure): boolean => {
+  const metrics = footprintMetrics(structure);
+  return structure.isConnected()
+    && structure.isSupported()
+    && metrics.columnCount < metrics.boundingArea
+    && metrics.density <= 0.9
+    && metrics.distinctHeights >= 2;
+};
+
+const acceptedStructure = (
+  seed: string,
+  difficulty: 1 | 2 | 3 | 4 | 5,
+  minimumPaintCategories: number,
+): {
+  readonly structure: VoxelStructure;
+  readonly solution: ReturnType<typeof solveCubeStructure>;
+  readonly eligible: readonly (1 | 2 | 3 | 4 | 5)[];
+} => {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const structure = buildStructure(`${seed}:layout-${attempt}`, difficulty);
+    if (!examLikeStructure(structure)) continue;
+    const solution = solveCubeStructure(structure);
+    const eligible = ([1, 2, 3, 4, 5] as const).filter(
+      (painted) => (solution.counts[painted] ?? 0) > 0,
+    );
+    if (eligible.length >= minimumPaintCategories) return { structure, solution, eligible };
+  }
+  throw new Error("Could not generate an irregular cube structure with enough painted-face categories");
+};
+
 const figureFromStructure = (structure: VoxelStructure): CubeCountingFigure => {
   const cubes = structure.coordinates();
   const fingerprint = fingerprint64(canonicalStringify(cubes as unknown as JsonValue));
@@ -99,7 +151,7 @@ const figureFromStructure = (structure: VoxelStructure): CubeCountingFigure => {
 export const generateCubeCountingFigure = (
   seed: string,
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
-): CubeCountingFigure => figureFromStructure(buildStructure(seed, difficulty));
+): CubeCountingFigure => figureFromStructure(acceptedStructure(seed, difficulty, 3).structure);
 
 const answerChoices = (correct: number, total: number): readonly number[] => {
   const values = [correct];
@@ -117,28 +169,8 @@ export const generateCubeCountingSet = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
   questionCount = 3,
 ): readonly CubeCountingQuestion[] => {
-  let structure: VoxelStructure | undefined;
-  let solution: ReturnType<typeof solveCubeStructure> | undefined;
-  let eligible: readonly (1 | 2 | 3 | 4 | 5)[] = [];
-
-  for (let attempt = 0; attempt < 24; attempt += 1) {
-    const candidate = buildStructure(`${seed}:layout-${attempt}`, difficulty);
-    const candidateSolution = solveCubeStructure(candidate);
-    const candidateEligible = ([1, 2, 3, 4, 5] as const).filter(
-      (painted) => (candidateSolution.counts[painted] ?? 0) > 0,
-    );
-    if (candidateEligible.length >= questionCount) {
-      structure = candidate;
-      solution = candidateSolution;
-      eligible = candidateEligible;
-      break;
-    }
-  }
-
-  if (structure === undefined || solution === undefined) {
-    throw new Error("Could not generate a cube structure with enough painted-face categories");
-  }
-
+  const { structure, solution, eligible } = acceptedStructure(seed, difficulty, questionCount);
+  const metrics = footprintMetrics(structure);
   const figure = figureFromStructure(structure);
   return createRandomSource(seed).fork("targets").shuffle(eligible).slice(0, questionCount).map((target) => {
     const correct = solution.counts[target] ?? 0;
@@ -164,11 +196,22 @@ export const generateCubeCountingSet = (
         raw: difficulty * 10 + structure.size / 5,
         normalized: Math.min(1, (difficulty * 10 + structure.size / 5) / 60),
         band: difficulty,
-        components: { cubeCount: structure.size, targetPaintedFaces: target },
+        components: {
+          cubeCount: structure.size,
+          targetPaintedFaces: target,
+          columnCount: metrics.columnCount,
+          footprintDensity: metrics.density,
+        },
       },
       validation: { passed: false, checks: [] },
       fingerprints: { figure: figure.fingerprint },
-      metadata: { sharedFigureQuestionCount: questionCount },
+      metadata: {
+        sharedFigureQuestionCount: questionCount,
+        footprintColumns: metrics.columnCount,
+        footprintBoundingArea: metrics.boundingArea,
+        footprintDensity: metrics.density,
+        distinctColumnHeights: metrics.distinctHeights,
+      },
     };
     const validation = validateCubeCountingQuestion(base);
     if (!validation.passed) throw new Error("Cube counting question failed validation");
