@@ -20,6 +20,7 @@ import {
   type SolidHandle,
 } from "@manipat/geometry";
 import {
+  APERTURE_ADVANCED_TEMPLATES,
   APERTURE_COMPLEX_TEMPLATES,
   APERTURE_FACETED_TEMPLATES,
   APERTURE_TEMPLATES,
@@ -58,6 +59,23 @@ const RICH_APERTURE_TEMPLATES = [
   ...APERTURE_FACETED_TEMPLATES,
 ] as const;
 
+const templatePoolFor = (difficulty: 1 | 2 | 3 | 4 | 5): readonly (typeof APERTURE_TEMPLATES[number])[] => {
+  switch (difficulty) {
+    case 1:
+      return [...APERTURE_TEMPLATES, ...RICH_APERTURE_TEMPLATES];
+    case 2:
+      return [...RICH_APERTURE_TEMPLATES, ...APERTURE_ADVANCED_TEMPLATES];
+    case 3:
+      // Weight the advanced bank twice while retaining some established rich families.
+      return [...APERTURE_ADVANCED_TEMPLATES, ...APERTURE_ADVANCED_TEMPLATES, ...RICH_APERTURE_TEMPLATES];
+    case 4:
+    case 5:
+      return APERTURE_ADVANCED_TEMPLATES;
+    default:
+      return difficulty satisfies never;
+  }
+};
+
 const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   (count, point, index) => {
     const previous = polygon[(index - 1 + polygon.length) % polygon.length];
@@ -81,20 +99,25 @@ const projectionComplexity = (silhouette: CanonicalSection2D): number => {
 const difficultyFor = (
   silhouette: CanonicalSection2D,
   requestedBand: 1 | 2 | 3 | 4 | 5,
+  semanticFeatureCount: number,
 ): ApertureQuestion["difficulty"] => {
   const polygon = silhouette.polygons[0] ?? [];
   const concavities = concavityCount(polygon);
   const vertexCount = polygon.length;
-  const raw = requestedBand * 10 + concavities * 2 + Math.min(vertexCount, 30) / 10;
+  const raw = requestedBand * 10
+    + concavities * 2
+    + Math.min(vertexCount, 30) / 10
+    + Math.min(semanticFeatureCount, 8) * 0.75;
   return {
     raw,
-    normalized: clamp(raw / 60, 0, 1),
+    normalized: clamp(raw / 65, 0, 1),
     band: requestedBand,
     components: {
       requestedBand,
       concavityCount: concavities,
       vertexCount,
       projectionComplexity: projectionComplexity(silhouette),
+      semanticFeatureCount,
     },
   };
 };
@@ -126,10 +149,7 @@ export class ApertureGenerator {
     difficulty: 1 | 2 | 3 | 4 | 5 = 3,
   ): ApertureQuestion {
     const rootRandom = createRandomSource(seed);
-    const templatePool = difficulty === 1
-      ? [...RICH_APERTURE_TEMPLATES, ...APERTURE_TEMPLATES]
-      : [...RICH_APERTURE_TEMPLATES];
-    const objectTemplate = rootRandom.fork("template").pick(templatePool);
+    const objectTemplate = rootRandom.fork("template").pick(templatePoolFor(difficulty));
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
       seed,
@@ -219,6 +239,8 @@ export class ApertureGenerator {
       canonicalStringify(generated.recipe as unknown as JsonValue),
     );
     const questionId = `aperture-${fingerprint64(`${recipeFingerprint}:${orientationDegrees.join(",")}`)}`;
+    const semanticFeatureCount = generated.provenance.length;
+    const isAdvanced = APERTURE_ADVANCED_TEMPLATES.some(({ id }) => id === objectTemplate.id);
     const baseQuestion: ApertureQuestion = {
       id: questionId,
       engineVersion: "0.1.0",
@@ -236,7 +258,7 @@ export class ApertureGenerator {
       choices,
       correctChoiceIndex,
       explanation,
-      difficulty: difficultyFor(correctSilhouette, difficulty),
+      difficulty: difficultyFor(correctSilhouette, difficulty, semanticFeatureCount),
       validation: { passed: false, checks: [] },
       fingerprints: {
         recipe: recipeFingerprint,
@@ -246,11 +268,13 @@ export class ApertureGenerator {
         normalization: normalizedResult.transform,
         projectionArea: Math.abs(signedPolygonArea(correctSilhouette.polygons[0] ?? [])),
         projectionComplexity: projectionComplexity(correctSilhouette),
+        semanticFeatureCount,
+        modelTier: isAdvanced ? "golden-complex-v3" : objectTemplate.id.startsWith("A1") ? "rich-v2" : "legacy-v1",
         mode: "principal-projection-exact-fit-v2",
         principalProjectionCount: uniquePrincipal.length,
         pictorialSpin,
         pictorialCamera: "top-left-fixed-v3",
-        objectFamily: objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
+        objectFamily: isAdvanced ? "advanced" : objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
       },
     };
     const validation = validateApertureQuestion(baseQuestion);

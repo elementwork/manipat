@@ -1,3 +1,4 @@
+import type { Vec2 } from "@manipat/core";
 import type { LogicalPolyhedron } from "./types.js";
 
 export const CUBE: LogicalPolyhedron = {
@@ -121,6 +122,43 @@ export const createHousePrism = ({
       { id: "roof-right", vertexIds: [2, 3, 8, 7] },
       { id: "roof-left", vertexIds: [3, 4, 9, 8] },
       { id: "side-left", vertexIds: [4, 0, 5, 9] },
+    ],
+  };
+};
+
+export interface ProfilePrismParameters {
+  /** ID must start with profile- so the generic net builder can recognize it. */
+  readonly id: `profile-${string}`;
+  /** Convex X/Z profile, starting with its lower horizontal edge. */
+  readonly profile: readonly Vec2[];
+  readonly depth: number;
+}
+
+/**
+ * Create an arbitrary profile prism. This extends the form-development model
+ * bank from 4/5-edge profiles to 6–8-edge profiles while preserving exact
+ * net-to-solid dimensional truth.
+ */
+export const createProfilePrism = ({ id, profile, depth }: ProfilePrismParameters): LogicalPolyhedron => {
+  if (profile.length < 3 || depth <= 0) throw new RangeError("Profile prism requires at least three profile vertices and positive depth");
+  const halfDepth = depth / 2;
+  const front = profile.map(([x, z]) => [x, -halfDepth, z] as const);
+  const back = profile.map(([x, z]) => [x, halfDepth, z] as const);
+  const count = profile.length;
+  const sideFaces = profile.map((_, index) => {
+    const next = (index + 1) % count;
+    return {
+      id: `side-${index}`,
+      vertexIds: [index, next, next + count, index + count],
+    };
+  });
+  return {
+    id,
+    vertices: [...front, ...back],
+    faces: [
+      { id: "end-front", vertexIds: Array.from({ length: count }, (_, index) => index) },
+      { id: "end-back", vertexIds: Array.from({ length: count }, (_, index) => count + (count - 1 - index)) },
+      ...sideFaces,
     ],
   };
 };

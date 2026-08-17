@@ -21,11 +21,12 @@ describe("form development", () => {
     }
   });
 
-  it("generates 2,000 uniquely foldable, continuously varied geometric questions", () => {
+  it("generates 2,000 uniquely foldable questions with complex hard polyhedra", () => {
     const polyhedra = new Set<string>();
     const geometries = new Set<string>();
     for (let index = 0; index < 2_000; index += 1) {
-      const question = generateFormDevelopmentQuestion(`form-${index}`, ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5);
+      const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;
+      const question = generateFormDevelopmentQuestion(`form-${index}`, band);
       const validation = validateFormDevelopmentQuestion(question);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
       expect(validation.passed).toBe(true);
@@ -37,10 +38,21 @@ describe("form development", () => {
         (svg.match(/<polygon\b/gu)?.length ?? 0) >= question.prompt.polyhedron.faces.length)).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
       expect(question.metadata.geometryVariation).toBe("continuous-parameters");
+      if (band >= 4) {
+        expect(question.metadata.modelTier, `seed form-${index}`).toBe("golden-complex-v3");
+        expect(question.prompt.polyhedron.faces.length, `seed form-${index}`).toBeGreaterThanOrEqual(8);
+        expect(question.prompt.polyhedron.id.startsWith("profile-")).toBe(true);
+      }
       polyhedra.add(question.prompt.polyhedron.id);
       geometries.add(question.fingerprints.net);
     }
-    expect(polyhedra).toEqual(new Set(["trapezoidal-prism", "house-prism"]));
+    expect(polyhedra).toEqual(new Set([
+      "trapezoidal-prism",
+      "house-prism",
+      "profile-asymmetric-crown",
+      "profile-chamfered-octagon",
+      "profile-clipped-roof",
+    ]));
     expect(geometries.size).toBeGreaterThan(1_900);
-  }, 60_000);
+  }, 120_000);
 });

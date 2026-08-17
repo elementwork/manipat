@@ -61,10 +61,14 @@ const geometryMatchesNet = (
   return face !== undefined && faceMatches(netFace, face, vertices);
 });
 
+const usesDimensionalGeometry = (question: FormDevelopmentQuestion): boolean =>
+  question.metadata.choiceModel === "dimensional-geometry-v2"
+  || question.metadata.choiceModel === "dimensional-geometry-v3";
+
 export const solveFormDevelopmentQuestion = (
   question: FormDevelopmentQuestion,
 ): readonly number[] => {
-  if (question.metadata.choiceModel === "dimensional-geometry-v2") {
+  if (usesDimensionalGeometry(question)) {
     return question.choices.flatMap((choice, index) =>
       choice.vertices !== undefined && geometryMatchesNet(question, choice.vertices) ? [index] : []);
   }

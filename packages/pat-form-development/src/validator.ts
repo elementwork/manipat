@@ -28,13 +28,17 @@ const geometrySeparation = (
     distance(vertex, candidate[index] ?? vertex) / span));
 };
 
+const usesDimensionalGeometry = (question: FormDevelopmentQuestion): boolean =>
+  question.metadata.choiceModel === "dimensional-geometry-v2"
+  || question.metadata.choiceModel === "dimensional-geometry-v3";
+
 export const validateFormDevelopmentQuestion = (
   question: FormDevelopmentQuestion,
 ): FormDevelopmentValidationResult => {
   const net = verifyNet(question.prompt.polyhedron, question.prompt.net);
   const matches = solveFormDevelopmentQuestion(question);
   const sourceVertices = question.prompt.polyhedron.vertices;
-  const geometricModel = question.metadata.choiceModel === "dimensional-geometry-v2";
+  const geometricModel = usesDimensionalGeometry(question);
   const choiceVertices = question.choices.map(({ vertices }) => vertices ?? sourceVertices);
   const separations = choiceVertices.map((vertices) => geometrySeparation(sourceVertices, vertices));
   let pairwiseSeparated = true;
