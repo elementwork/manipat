@@ -50,14 +50,7 @@ export const renderAperturePictorial = (view: OrthographicView): string => {
     title: "Aperture object",
     description: "Deterministic isometric line drawing of the object to pass through an opening",
     children: [
-      // All edges drawn as solid (DAT aperture format: no dashed lines)
-      // Hidden edges (e.g. cylinder backs) drawn thinner to show structure
-      ...view.hidden.map(({ a, b }, index) => svgLine([a[0], -a[1]], [b[0], -b[1]], {
-        "data-edge-id": `structural-${index}`,
-        stroke: "#555",
-        "stroke-linecap": "round",
-        "stroke-width": 0.8,
-      })),
+      // DAT aperture format: only visible edges, no hidden/structural lines
       ...view.visible.map(({ a, b }, index) => svgLine([a[0], -a[1]], [b[0], -b[1]], {
         "data-edge-id": `visible-${index}`,
         stroke: "black",

@@ -59,14 +59,8 @@ const answerLetter = (index: number): string => String.fromCharCode(65 + index);
 const svgText = (x: number, y: number, value: string, size = 14, anchor = "start", weight = "normal"): string =>
   `<text fill="#171b18" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" x="${x}" y="${y}">${escapeHtml(value)}</text>`;
 
-const positionedSvg = (content: string, x: number, y: number, width: number, height: number): string => {
-  const scale = 1.25;
-  const sw = Math.round(width * scale);
-  const sh = Math.round(height * scale);
-  const dx = Math.round((sw - width) / 2);
-  const dy = Math.round((sh - height) / 2);
-  return content.replace("<svg", `<svg height="${sh}" preserveAspectRatio="xMidYMid meet" width="${sw}" x="${x - dx}" y="${y - dy}"`);
-};
+const positionedSvg = (content: string, x: number, y: number, width: number, height: number): string =>
+  content.replace("<svg", `<svg height="${height}" preserveAspectRatio="xMidYMid meet" width="${width}" x="${x}" y="${y}"`);
 
 const cell = (x: number, width: number, label: string, artwork: string): string =>
   `<rect fill="#fff" height="282" stroke="#231f20" stroke-width="1.7" width="${width}" x="${x}" y="1"/>${artwork}${svgText(x + width / 2, 270, label, 15, "middle", "700")}`;
@@ -133,26 +127,27 @@ const rowSvg = (question: AnyPatQuestion, number: number): string => {
     case "paper-folding": {
       const steps = question.prompt.stepSvgs;
       const n = steps.length;
-      const boxW = 130, boxH = 130, gap = 12;
+      // 1.25x scale for Paper Folding
+      const boxW = 163, boxH = 163, gap = 15;
       // Top row: fold steps (left-aligned)
       const stepsX = 20;
       const stepY = 26;
       const stepsBlock = steps.map((step, i) => {
         const sx = stepsX + i * (boxW + gap);
         const label = i === n - 1 ? "PUNCH" : `FOLD ${i + 1}`;
-        return `${positionedSvg(step, sx, stepY, boxW, boxH - 16)}${svgText(sx + boxW / 2, stepY + boxH - 2, label, 9, "middle", "700")}`;
+        return `${positionedSvg(step, sx, stepY, boxW, boxH - 20)}${svgText(sx + boxW / 2, stepY + boxH - 2, label, 10, "middle", "700")}`;
       }).join("");
-      // Bottom row: answer choices (left-aligned)
-      const cw = 130, ch = 130;
+      // Bottom row: answer choices (same size as steps)
+      const cw = 163, ch = 163;
       const choiceX = 20;
       const choiceY = stepY + boxH + 20;
       const choices = question.choices.map((c, i) => {
         const cx = choiceX + i * (cw + gap);
-        return `${positionedSvg(c.svg, cx, choiceY, cw, ch - 16)}${svgText(cx + cw / 2, choiceY + ch - 2, answerLetter(i), 11, "middle", "700")}`;
+        return `${positionedSvg(c.svg, cx, choiceY, cw, ch - 20)}${svgText(cx + cw / 2, choiceY + ch - 2, answerLetter(i), 11, "middle", "700")}`;
       }).join("");
       // Outer border
-      const border = `<rect x="2" y="2" width="1221" height="316" fill="none" stroke="#231f20" stroke-width="1.5" rx="2"/>`;
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 320" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${border}${stepsBlock}${choices}</svg>`;
+      const border = `<rect x="2" y="2" width="1276" height="396" fill="none" stroke="#231f20" stroke-width="1.5" rx="2"/>`;
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1280 400" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${border}${stepsBlock}${choices}</svg>`;
     }
     /* ── Cube Counting: figure left, question text + 5 text choices right ── */
     case "cube-counting": {
