@@ -33,6 +33,7 @@ const VIEW_FRAMES: Readonly<Record<TfeViewName, ProjectionFrame>> = {
   end: RIGHT_END_FRAME,
 };
 const VIEW_NAMES = ["front", "top", "end"] as const;
+const information = (view: OrthographicView): number => view.visible.length + view.hidden.length;
 
 export class TfeGenerator {
   readonly #kernel: GeometryKernel;
@@ -59,7 +60,11 @@ export class TfeGenerator {
       name,
       createOrthographicView(mesh, VIEW_FRAMES[name]),
     ])) as Record<TfeViewName, OrthographicView>;
-    const missingView = random.fork("missing-view").pick(VIEW_NAMES);
+    const minimumSegments = difficulty <= 1 ? 4 : difficulty <= 3 ? 5 : 6;
+    const eligibleMissingViews = VIEW_NAMES.filter((name) => information(views[name]) >= minimumSegments);
+    const rankedViews = [...VIEW_NAMES].sort((a, b) => information(views[b]) - information(views[a]));
+    const missingPool = eligibleMissingViews.length > 0 ? eligibleMissingViews : rankedViews.slice(0, 1);
+    const missingView = random.fork("missing-view").pick(missingPool);
     const correct = views[missingView];
     const referenceViews = VIEW_NAMES.filter((name) => name !== missingView).map((name) => views[name]);
     const distractors = generateTfeDistractors(correct, referenceViews);
@@ -126,7 +131,11 @@ export class TfeGenerator {
       },
       validation: { passed: false, checks: [] },
       fingerprints: { recipe: recipeFingerprint, view: correct.fingerprint },
-      metadata: { normalization: normalizedResult.transform, geometryFamily: "tfe-orthogonal-v2" },
+      metadata: {
+        normalization: normalizedResult.transform,
+        geometryFamily: "tfe-orthogonal-v2",
+        targetInformation: information(correct),
+      },
     };
     const validation = validateTfeQuestion(base);
     if (!validation.passed) {
