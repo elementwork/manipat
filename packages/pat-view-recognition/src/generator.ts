@@ -16,7 +16,7 @@ import {
   type OrthographicView,
   type ProjectionFrame,
 } from "@manipat/geometry";
-import { TFE_TEMPLATES } from "@manipat/object-generator";
+import { TFE_ADVANCED_TEMPLATES, TFE_TEMPLATES } from "@manipat/object-generator";
 import { generateTfeDistractors } from "./distractors.js";
 import { renderTfeView, sharedTfeViewBox } from "./render.js";
 import type {
@@ -35,6 +35,30 @@ const VIEW_FRAMES: Readonly<Record<TfeViewName, ProjectionFrame>> = {
 const VIEW_NAMES = ["front", "top", "end"] as const;
 const information = (view: OrthographicView): number => view.visible.length + view.hidden.length;
 
+const templatePoolFor = (difficulty: 1 | 2 | 3 | 4 | 5) => {
+  switch (difficulty) {
+    case 1:
+      return TFE_TEMPLATES;
+    case 2:
+      return [...TFE_TEMPLATES, ...TFE_ADVANCED_TEMPLATES];
+    case 3:
+      return [...TFE_ADVANCED_TEMPLATES, ...TFE_ADVANCED_TEMPLATES, ...TFE_TEMPLATES];
+    case 4:
+    case 5:
+      return TFE_ADVANCED_TEMPLATES;
+    default:
+      return difficulty satisfies never;
+  }
+};
+
+const minimumInformationFor = (difficulty: 1 | 2 | 3 | 4 | 5): number => ({
+  1: 4,
+  2: 6,
+  3: 7,
+  4: 8,
+  5: 9,
+})[difficulty];
+
 export class TfeGenerator {
   readonly #kernel: GeometryKernel;
 
@@ -44,7 +68,7 @@ export class TfeGenerator {
 
   public generate(seed: string, difficulty: 1 | 2 | 3 | 4 | 5 = 3): TfeQuestion {
     const random = createRandomSource(seed);
-    const objectTemplate = random.fork("template").pick(TFE_TEMPLATES);
+    const objectTemplate = random.fork("template").pick(templatePoolFor(difficulty));
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
       seed,
@@ -60,7 +84,7 @@ export class TfeGenerator {
       name,
       createOrthographicView(mesh, VIEW_FRAMES[name]),
     ])) as Record<TfeViewName, OrthographicView>;
-    const minimumSegments = difficulty <= 1 ? 4 : difficulty <= 3 ? 5 : 6;
+    const minimumSegments = minimumInformationFor(difficulty);
     const eligibleMissingViews = VIEW_NAMES.filter((name) => information(views[name]) >= minimumSegments);
     const rankedViews = [...VIEW_NAMES].sort((a, b) => information(views[b]) - information(views[a]));
     const missingPool = eligibleMissingViews.length > 0 ? eligibleMissingViews : rankedViews.slice(0, 1);
@@ -92,6 +116,9 @@ export class TfeGenerator {
     const recipeFingerprint = fingerprint64(
       canonicalStringify(generated.recipe as unknown as JsonValue),
     );
+    const totalInformation = VIEW_NAMES.reduce((sum, name) => sum + information(views[name]), 0);
+    const semanticFeatureCount = generated.provenance.length;
+    const isAdvanced = TFE_ADVANCED_TEMPLATES.some(({ id }) => id === objectTemplate.id);
     const base: TfeQuestion = {
       id: `tfe-${fingerprint64(`${recipeFingerprint}:${missingView}`)}`,
       engineVersion: "0.1.0",
@@ -120,21 +147,34 @@ export class TfeGenerator {
           choice.mutation === undefined ? [] : [[String(index), choice.mutation]])),
       },
       difficulty: {
-        raw: difficulty * 10 + correct.visible.length + correct.hidden.length * 1.5,
-        normalized: Math.min(1, (difficulty * 10 + correct.visible.length + correct.hidden.length * 1.5) / 70),
+        raw: difficulty * 10
+          + correct.visible.length
+          + correct.hidden.length * 1.5
+          + semanticFeatureCount * 0.75,
+        normalized: Math.min(1, (
+          difficulty * 10
+          + correct.visible.length
+          + correct.hidden.length * 1.5
+          + semanticFeatureCount * 0.75
+        ) / 75),
         band: difficulty,
         components: {
           visibleLines: correct.visible.length,
           hiddenLines: correct.hidden.length,
           requestedBand: difficulty,
+          semanticFeatureCount,
+          totalProjectionInformation: totalInformation,
         },
       },
       validation: { passed: false, checks: [] },
       fingerprints: { recipe: recipeFingerprint, view: correct.fingerprint },
       metadata: {
         normalization: normalizedResult.transform,
-        geometryFamily: "tfe-orthogonal-v2",
+        geometryFamily: isAdvanced ? "tfe-golden-complex-v3" : "tfe-orthogonal-v2",
+        modelTier: isAdvanced ? "golden-complex-v3" : "foundation-v2",
+        semanticFeatureCount,
         targetInformation: information(correct),
+        totalProjectionInformation: totalInformation,
       },
     };
     const validation = validateTfeQuestion(base);
