@@ -23,27 +23,27 @@ interface EmbeddedExam {
 const CATEGORY_DETAILS: Readonly<Record<PatQuestionType, { readonly title: string; readonly directions: string }>> = {
   aperture: {
     title: "Apertures",
-    directions: "Select the one opening the object can pass through after it is oriented, without changing orientation during passage.",
+    directions: "Select the one opening the object can pass through.",
   },
   "view-recognition": {
     title: "View Recognition",
-    directions: "Use the shared width, depth, height, and hidden-line conventions to select the missing orthographic view.",
+    directions: "Select the missing orthographic view.",
   },
   angle: {
     title: "Angle Discrimination",
-    directions: "Rank the four labeled angles from smallest to largest. Ray length and rotation do not change an angle's measure.",
+    directions: "Rank angles 1\u20134 from smallest to largest.",
   },
   "paper-folding": {
     title: "Paper Folding",
-    directions: "Follow the folds and punch locations, then select the hole pattern after the paper is completely unfolded.",
+    directions: "Select the hole pattern after unfolding.",
   },
   "cube-counting": {
     title: "Cube Counting",
-    directions: "Assume every exposed face except a face resting on the surface is painted. Select the requested cube count.",
+    directions: "Select the requested cube count.",
   },
   "form-development": {
     title: "Spatial Relations",
-    directions: "Select the three-dimensional form that can be made by folding the flat pattern without changing its markings.",
+    directions: "Select the solid formed by folding the flat pattern.",
   },
 };
 
@@ -67,51 +67,110 @@ const cell = (x: number, width: number, label: string, artwork: string): string 
 
 const rowSvg = (question: AnyPatQuestion, number: number): string => {
   const title = `${CATEGORY_DETAILS[question.type].title} — Question ${number}`;
-  const header = `${svgText(10, 20, CATEGORY_DETAILS[question.type].title, 14, "start", "700")}${svgText(1215, 20, `Question ${number}`, 14, "end", "700")}`;
-  const textChoice = (x: number, width: number, label: string, value: string): string =>
-    cell(x, width, label, svgText(x + width / 2, 145, value, 17, "middle", "700"));
   switch (question.type) {
+    /* ── Apertures: 3D object left, 5 aperture outlines right ── */
     case "aperture": {
-      const promptWidth = 238;
-      const choiceWidth = (1223 - promptWidth) / 5;
-      const prompt = `${svgText(10, 38, "Choose the opening that fits.", 11)}${positionedSvg(question.prompt.pictorialSvg, 8, 45, promptWidth - 16, 205)}`;
-      const choices = question.choices.map((choice, index) => cell(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), positionedSvg(choice.svg, promptWidth + choiceWidth * index + 8, 42, choiceWidth - 16, 208))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "OBJECT", prompt)}${choices}${header}</svg>`;
+      const promptW = 240;
+      const cw = (1223 - promptW) / 5;
+      const prompt = positionedSvg(question.prompt.pictorialSvg, 6, 30, promptW - 12, 230);
+      const choices = question.choices.map((c, i) =>
+        cell(promptW + cw * i, cw, answerLetter(i), positionedSvg(c.svg, promptW + cw * i + 6, 30, cw - 12, 230))
+      ).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptW, "", prompt)}${choices}</svg>`;
     }
+    /* ── TFE: quadrant grid with cross lines + 4 answer views ── */
     case "view-recognition": {
-      const promptWidth = 296;
-      const choiceWidth = (1223 - promptWidth) / 4;
-      const prompt = `${svgText(10, 38, `Choose the correct ${question.prompt.missingView} view.`, 11)}${question.prompt.givenViews.map((view, index) => `${svgText(18 + index * 137, 67, view.name.toUpperCase(), 10, "start", "700")}${positionedSvg(view.svg, 10 + index * 140, 76, 128, 155)}`).join("")}`;
-      const choices = question.choices.map((choice, index) => cell(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), positionedSvg(choice.svg, promptWidth + choiceWidth * index + 10, 42, choiceWidth - 20, 205))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "GIVEN VIEWS", prompt)}${choices}${header}</svg>`;
+      const panelW = 520;
+      const cw = (1223 - panelW) / 4;
+      const views = question.prompt.givenViews;
+      const missing = question.prompt.missingView; // "top" | "front" | "end"
+      // Cross lines — tight margins for maximum view size
+      const cx = 260, cy = 136;
+      const cross = `<line x1="4" y1="${cy}" x2="${panelW - 4}" y2="${cy}" stroke="#231f20" stroke-width="1.5"/><line x1="${cx}" y1="4" x2="${cx}" y2="270" stroke="#231f20" stroke-width="1.5"/>`;
+      // Quadrant positions: [centerX, labelY] — all 4 quadrants
+      const quads: Record<string, [number, number]> = {
+        top: [cx / 2, 8], front: [cx / 2, cy + 4], end: [cx + (panelW - cx) / 2, cy + 4],
+      };
+      // Build all 4 quadrant contents: given views + missing "?"
+      const allViewNames: Record<string, string> = { top: "TOP VIEW", front: "FRONT VIEW", end: "END VIEW" };
+      const givenMap = new Map(views.map(v => [v.name, v]));
+      const quadrants = Object.entries(quads).map(([name, [vx, vy]]) => {
+        const label = allViewNames[name]!;
+        const labelEl = svgText(vx - 24, vy + 6, label, 9, "start", "700");
+        const given = givenMap.get(name as "top" | "front" | "end");
+        if (given) {
+          const sz = 126;
+          return `${labelEl}${positionedSvg(given.svg, vx - sz / 2, vy + 8, sz, sz - 6)}`;
+        }
+        // Missing view: label + "?"
+        return `${labelEl}${svgText(vx, vy + 84, "?", 32, "middle", "normal")}`;
+      }).join("");
+      const prompt = cross + quadrants;
+      const choices = question.choices.map((c, i) =>
+        cell(panelW + cw * i, cw, answerLetter(i), positionedSvg(c.svg, panelW + cw * i + 6, 30, cw - 12, 220))
+      ).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, panelW, "", prompt)}${choices}</svg>`;
     }
+    /* ── Angle: angles on left, text choices on right, with border ── */
     case "angle": {
-      const promptWidth = 590;
-      const choiceWidth = (1223 - promptWidth) / 4;
-      const prompt = `${svgText(10, 38, "Rank angles 1–4: smallest to largest.", 11)}${positionedSvg(question.prompt.svg, 10, 44, promptWidth - 20, 204)}`;
-      const choices = question.choices.map(({ order }, index) => textChoice(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), order.join("-"))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "ANGLES 1–4", prompt)}${choices}${header}</svg>`;
+      const angleW = 820;
+      const border = `<rect x="2" y="2" width="1221" height="280" fill="none" stroke="#231f20" stroke-width="1.5" rx="2"/>`;
+      const prompt = positionedSvg(question.prompt.svg, 0, 8, angleW, 268);
+      const choiceX = angleW + 16;
+      const choices = question.choices.map(({ order }, i) => {
+        const ty = 46 + i * 42;
+        return `${svgText(choiceX, ty, `${answerLetter(i)})`, 14, "start", "700")}${svgText(choiceX + 30, ty, order.join("  —  "), 14, "start", "normal")}`;
+      }).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${border}${prompt}${choices}</svg>`;
     }
+    /* ── Paper Folding: fold steps TOP ROW, answer choices BOTTOM ROW ── */
     case "paper-folding": {
-      const promptWidth = 500;
-      const choiceWidth = (1223 - promptWidth) / 5;
-      const prompt = `${svgText(10, 38, "Choose the pattern after unfolding.", 11)}${question.prompt.stepSvgs.map((step, index) => `${positionedSvg(step, 8 + index * 122, 48, 114, 188)}${svgText(65 + index * 122, 250, index === question.prompt.stepSvgs.length - 1 ? "PUNCH" : `FOLD ${index + 1}`, 9, "middle", "700")}`).join("")}`;
-      const choices = question.choices.map((choice, index) => cell(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), positionedSvg(choice.svg, promptWidth + choiceWidth * index + 7, 45, choiceWidth - 14, 198))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "FOLDS", prompt)}${choices}${header}</svg>`;
+      const steps = question.prompt.stepSvgs;
+      const n = steps.length;
+      const boxW = 130, boxH = 130, gap = 12;
+      // Top row: fold steps (left-aligned)
+      const stepsX = 20;
+      const stepY = 26;
+      const stepsBlock = steps.map((step, i) => {
+        const sx = stepsX + i * (boxW + gap);
+        const label = i === n - 1 ? "PUNCH" : `FOLD ${i + 1}`;
+        return `${positionedSvg(step, sx, stepY, boxW, boxH - 16)}${svgText(sx + boxW / 2, stepY + boxH - 2, label, 9, "middle", "700")}`;
+      }).join("");
+      // Bottom row: answer choices (left-aligned)
+      const cw = 130, ch = 130;
+      const choiceX = 20;
+      const choiceY = stepY + boxH + 20;
+      const choices = question.choices.map((c, i) => {
+        const cx = choiceX + i * (cw + gap);
+        return `${positionedSvg(c.svg, cx, choiceY, cw, ch - 16)}${svgText(cx + cw / 2, choiceY + ch - 2, answerLetter(i), 11, "middle", "700")}`;
+      }).join("");
+      // Outer border
+      const border = `<rect x="2" y="2" width="1221" height="316" fill="none" stroke="#231f20" stroke-width="1.5" rx="2"/>`;
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 320" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${border}${stepsBlock}${choices}</svg>`;
     }
+    /* ── Cube Counting: figure left, question text + 5 text choices right ── */
     case "cube-counting": {
-      const promptWidth = 480;
-      const choiceWidth = (1223 - promptWidth) / 5;
-      const prompt = `${svgText(10, 38, `How many cubes have exactly ${question.prompt.targetPaintedFaces} painted faces?`, 11)}${positionedSvg(question.prompt.figure.svg, 12, 45, promptWidth - 24, 202)}`;
-      const choices = question.choices.map((choice, index) => textChoice(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), String(choice))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "CUBE STRUCTURE", prompt)}${choices}${header}</svg>`;
+      const figW = 340;
+      const prompt = positionedSvg(question.prompt.figure.svg, 10, 28, figW - 20, 240);
+      const sideWord = question.prompt.targetPaintedFaces === 1 ? "side" : "sides";
+      const qText = `How many cubes have exactly ${question.prompt.targetPaintedFaces} ${sideWord} painted?`;
+      const choiceX = figW + 30;
+      const questionText = svgText(choiceX, 52, qText, 16, "start", "700");
+      const choices = question.choices.map((choice, i) => {
+        const cy = 90 + i * 42;
+        return `${svgText(choiceX, cy, `${answerLetter(i)})`, 16, "start", "700")}${svgText(choiceX + 34, cy, `${choice} cube${choice !== 1 ? "s" : ""}`, 16, "start", "normal")}`;
+      }).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, figW, "", prompt)}${questionText}${choices}</svg>`;
     }
+    /* ── Form Development: net left, 4 folded solids right ── */
     case "form-development": {
-      const promptWidth = 296;
-      const choiceWidth = (1223 - promptWidth) / 4;
-      const prompt = `${svgText(10, 38, "Choose the solid formed by this pattern.", 11)}${positionedSvg(question.prompt.svg, 10, 45, promptWidth - 20, 202)}`;
-      const choices = question.choices.map((choice, index) => cell(promptWidth + choiceWidth * index, choiceWidth, answerLetter(index), positionedSvg(choice.svg, promptWidth + choiceWidth * index + 10, 42, choiceWidth - 20, 205))).join("");
-      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptWidth, "FLAT PATTERN", prompt)}${choices}${header}</svg>`;
+      const promptW = 296;
+      const cw = (1223 - promptW) / 4;
+      const prompt = positionedSvg(question.prompt.svg, 10, 30, promptW - 20, 230);
+      const choices = question.choices.map((c, i) =>
+        cell(promptW + cw * i, cw, answerLetter(i), positionedSvg(c.svg, promptW + cw * i + 10, 30, cw - 20, 230))
+      ).join("");
+      return `<svg aria-label="${escapeHtml(title)}" class="question-row" role="img" viewBox="0 0 1225 284" xmlns="http://www.w3.org/2000/svg"><title>${escapeHtml(title)}</title>${cell(0, promptW, "", prompt)}${choices}</svg>`;
     }
     default:
       return question satisfies never;
