@@ -23,20 +23,23 @@ export const renderApertureChoice = (
   viewBox: ApertureViewBox,
   label: string,
 ): string => {
-  const polygon = section.polygons[0] ?? [];
-  const displayPolygon = polygon.map(([x, y]): Vec2 => [x, -y]);
-  return svgDocument({
-    viewBox,
-    title: `Aperture choice ${label}`,
-    description: "Exact-scale opening silhouette",
-    children: [svgPolygon(displayPolygon, {
+  const outlines = section.polygons.map((polygon) => {
+    const displayPolygon = polygon.map(([x, y]): Vec2 => [x, -y]);
+    return svgPolygon(displayPolygon, {
       class: "aperture-outline",
       fill: "white",
       stroke: "black",
       "stroke-linecap": "round",
       "stroke-linejoin": "round",
       "stroke-width": 1.5,
-    })],
+    });
+  });
+
+  return svgDocument({
+    viewBox,
+    title: `Aperture choice ${label}`,
+    description: "Exact-scale opening silhouette",
+    children: outlines,
   });
 };
 
@@ -50,7 +53,6 @@ export const renderAperturePictorial = (view: OrthographicView): string => {
     title: "Aperture object",
     description: "Deterministic isometric line drawing of the object to pass through an opening",
     children: [
-      // DAT aperture format: only visible edges, no hidden/structural lines
       ...view.visible.map(({ a, b }, index) => svgLine([a[0], -a[1]], [b[0], -b[1]], {
         "data-edge-id": `visible-${index}`,
         stroke: "black",
