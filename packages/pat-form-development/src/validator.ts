@@ -7,7 +7,6 @@ import type {
 } from "./types.js";
 
 const check = (id: string, passed: boolean): ValidationCheck => ({ id, passed, severity: "error" });
-
 const distance = (a: Vec3, b: Vec3): number =>
   Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -35,15 +34,27 @@ export const validateFormDevelopmentQuestion = (
   const net = verifyNet(question.prompt.polyhedron, question.prompt.net);
   const matches = solveFormDevelopmentQuestion(question);
   const sourceVertices = question.prompt.polyhedron.vertices;
-  const separations = question.choices.map(({ vertices }) => geometrySeparation(sourceVertices, vertices));
+  const geometricModel = question.metadata.choiceModel === "dimensional-geometry-v2";
+  const choiceVertices = question.choices.map(({ vertices }) => vertices ?? sourceVertices);
+  const separations = choiceVertices.map((vertices) => geometrySeparation(sourceVertices, vertices));
+  let pairwiseSeparated = true;
+  if (geometricModel) {
+    for (let first = 0; first < choiceVertices.length; first += 1) {
+      for (let second = first + 1; second < choiceVertices.length; second += 1) {
+        if (geometrySeparation(choiceVertices[first]!, choiceVertices[second]!) < 0.04) pairwiseSeparated = false;
+      }
+    }
+  }
   const checks = [
     check("valid-net", net.valid),
     check("four-choices", question.choices.length === 4),
-    check("choice-geometry", question.choices.every(({ vertices }) => vertices.length === sourceVertices.length)),
+    check("choice-geometry", !geometricModel || question.choices.every(
+      ({ vertices }) => vertices !== undefined && vertices.length === sourceVertices.length)),
     check("unique-choices", new Set(question.choices.map(({ fingerprint }) => fingerprint)).size === 4),
     check("unique-rendered-choices", new Set(question.choices.map(({ svg }) => svg)).size === question.choices.length),
-    check("meaningful-geometric-separation", question.choices.every((_, index) =>
+    check("meaningful-geometric-separation", !geometricModel || question.choices.every((_, index) =>
       index === question.correctChoiceIndex || (separations[index] ?? 0) >= 0.055)),
+    check("pairwise-geometric-separation", !geometricModel || pairwiseSeparated),
     check("exactly-one-answer", matches.length === 1),
     check("correct-index", matches[0] === question.correctChoiceIndex),
     check("renderable", question.prompt.svg.startsWith("<svg") && question.choices.every(({ svg }) => svg.startsWith("<svg"))),
