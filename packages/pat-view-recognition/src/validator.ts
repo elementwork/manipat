@@ -19,13 +19,15 @@ export const validateTfeQuestion = (question: TfeQuestion): TfeValidationResult 
     check("given-view-count", question.prompt.givenViews.length === 2),
     check("choice-count", question.choices.length === 4),
     check("unique-choices", new Set(canonicalFingerprints).size === 4),
+    check("unique-rendered-choices", new Set(question.choices.map(({ svg }) => svg)).size === question.choices.length),
     check("stable-fingerprints", question.choices.every(
       ({ view }, index) => view.fingerprint === canonicalFingerprints[index],
     )),
     check("exactly-one-answer", matches.length === 1),
     check("correct-index", matches[0] === question.correctChoiceIndex),
     check("no-zero-length-lines", allSegments.every((segment) => segmentLength(segment) > EPS.projection)),
-    check("renderable-svg", question.choices.every(({ svg }) => svg.startsWith("<svg"))),
+    check("renderable-svg", question.prompt.givenViews.every(({ svg }) => svg.startsWith("<svg"))
+      && question.choices.every(({ svg }) => svg.startsWith("<svg"))),
   ];
   return { passed: checks.every(({ passed }) => passed), checks, matchingChoiceIndices: matches };
 };
