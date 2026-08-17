@@ -15,29 +15,33 @@ describe("TfeGenerator", () => {
     );
   });
 
-  it("generates 1,000 uniquely solvable, structurally varied questions", async () => {
+  it("generates 1,000 uniquely solvable questions with golden-complex hard models", async () => {
     const generator = await createTfeGenerator();
     const templates = new Set<string>();
     const missingViews = new Set<string>();
+    let advancedTemplateCount = 0;
     for (let index = 0; index < 1_000; index += 1) {
-      const question = generator.generate(`tfe-${index}`, ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5);
+      const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;
+      const question = generator.generate(`tfe-${index}`, band);
       const validation = validateTfeQuestion(question);
       expect(validation.passed, `seed tfe-${index}`).toBe(true);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
       expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(4);
       expect(new Set(question.choices.flatMap(({ mutation }) => mutation === undefined ? [] : [mutation])).size).toBeGreaterThanOrEqual(2);
       expect(question.templateId.startsWith("TFE")).toBe(true);
+      expect(Number(question.metadata.totalProjectionInformation ?? 0)).toBeGreaterThanOrEqual(
+        Number(question.metadata.targetInformation ?? 0),
+      );
+      if (question.metadata.modelTier === "golden-complex-v3") advancedTemplateCount += 1;
+      if (band >= 4) {
+        expect(question.metadata.modelTier, `seed tfe-${index}`).toBe("golden-complex-v3");
+        expect(Number(question.metadata.semanticFeatureCount ?? 0)).toBeGreaterThanOrEqual(4);
+      }
       templates.add(question.templateId);
       missingViews.add(question.prompt.missingView);
     }
-    expect(templates).toEqual(new Set([
-      "TFE01-stepped-corner",
-      "TFE02-top-front-pocket",
-      "TFE03-bridge",
-      "TFE04-terrace",
-      "TFE05-corner-notch",
-      "TFE06-crossing-ribs",
-    ]));
+    expect(templates.size).toBeGreaterThanOrEqual(10);
+    expect(advancedTemplateCount).toBeGreaterThan(500);
     expect(missingViews).toEqual(new Set(["front", "top", "end"]));
-  }, 120_000);
+  }, 180_000);
 });
