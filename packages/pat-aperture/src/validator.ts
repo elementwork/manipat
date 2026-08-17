@@ -32,22 +32,51 @@ const complexity = (silhouette: CanonicalSection2D): number => {
   return outer.length + concavityCount(outer) * 2 + Math.max(0, silhouette.polygons.length - 1) * 4;
 };
 
+const pointDistance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const contourDistance = (first: CanonicalSection2D, second: CanonicalSection2D): number => {
+  const a = first.polygons[0] ?? [];
+  const b = second.polygons[0] ?? [];
+  if (a.length === 0 || b.length === 0) return Number.POSITIVE_INFINITY;
+  const scale = Math.max(
+    first.bounds.max[0] - first.bounds.min[0],
+    first.bounds.max[1] - first.bounds.min[1],
+    second.bounds.max[0] - second.bounds.min[0],
+    second.bounds.max[1] - second.bounds.min[1],
+    EPS.length,
+  );
+  const directed = (source: readonly Vec2[], target: readonly Vec2[]): number =>
+    Math.max(...source.map((point) => Math.min(...target.map((candidate) => pointDistance(point, candidate))))) / scale;
+  return Math.max(directed(a, b), directed(b, a));
+};
+
 const meaningfullyDifferent = (
-  target: CanonicalSection2D,
-  candidate: CanonicalSection2D,
+  first: CanonicalSection2D,
+  second: CanonicalSection2D,
 ): boolean => {
-  const targetWidth = target.bounds.max[0] - target.bounds.min[0];
-  const targetHeight = target.bounds.max[1] - target.bounds.min[1];
-  const candidateWidth = candidate.bounds.max[0] - candidate.bounds.min[0];
-  const candidateHeight = candidate.bounds.max[1] - candidate.bounds.min[1];
-  const widthDifference = Math.abs(candidateWidth - targetWidth) / Math.max(targetWidth, EPS.length);
-  const heightDifference = Math.abs(candidateHeight - targetHeight) / Math.max(targetHeight, EPS.length);
-  const targetVertices = target.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
-  const candidateVertices = candidate.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
-  return widthDifference >= 0.055
-    || heightDifference >= 0.055
-    || target.polygons.length !== candidate.polygons.length
-    || targetVertices !== candidateVertices;
+  const firstWidth = first.bounds.max[0] - first.bounds.min[0];
+  const firstHeight = first.bounds.max[1] - first.bounds.min[1];
+  const secondWidth = second.bounds.max[0] - second.bounds.min[0];
+  const secondHeight = second.bounds.max[1] - second.bounds.min[1];
+  const widthDifference = Math.abs(secondWidth - firstWidth) / Math.max(firstWidth, secondWidth, EPS.length);
+  const heightDifference = Math.abs(secondHeight - firstHeight) / Math.max(firstHeight, secondHeight, EPS.length);
+  const firstVertices = first.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+  const secondVertices = second.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+  return widthDifference >= 0.05
+    || heightDifference >= 0.05
+    || first.polygons.length !== second.polygons.length
+    || firstVertices !== secondVertices
+    || contourDistance(first, second) >= 0.045;
+};
+
+const choicesAreSeparated = (question: ApertureQuestion): boolean => {
+  for (let first = 0; first < question.choices.length; first += 1) {
+    for (let second = first + 1; second < question.choices.length; second += 1) {
+      const a = question.choices[first]?.silhouette;
+      const b = question.choices[second]?.silhouette;
+      if (a === undefined || b === undefined || !meaningfullyDifferent(a, b)) return false;
+    }
+  }
+  return true;
 };
 
 export const validateApertureQuestion = (
@@ -70,9 +99,7 @@ export const validateApertureQuestion = (
       (choice, index) => choice.fingerprint === recomputedFingerprints[index],
     )),
     check("unique-choices", uniqueFingerprints.size === question.choices.length),
-    check("meaningful-choice-separation", targetSilhouette !== undefined && question.choices.every(
-      ({ silhouette }, index) => index === question.correctChoiceIndex || meaningfullyDifferent(targetSilhouette, silhouette),
-    )),
+    check("pairwise-choice-separation", choicesAreSeparated(question)),
     check("exactly-one-match", matchingChoiceIndices.length === 1, { matchingChoiceIndices }),
     check("correct-index", matchingChoiceIndices[0] === question.correctChoiceIndex),
     check("meaningful-area", area > EPS.area, { area }),
