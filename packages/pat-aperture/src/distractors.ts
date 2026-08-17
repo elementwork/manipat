@@ -1,4 +1,4 @@
-import type { Vec2 } from "@manipat/core";
+import { EPS, type Vec2 } from "@manipat/core";
 import {
   canonicalizeSilhouette,
   mapSilhouette,
@@ -82,7 +82,7 @@ const addNotch = (silhouette: CanonicalSection2D, depthFactor: number): Canonica
   ];
   const changed = [...polygon];
   changed.splice(index + 1, 0, notch);
-  return canonicalizeSilhouette({ polygons: [changed, ...silhouette.polygons.slice(1)], bounds: silhouette.bounds });
+  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
 };
 
 const shiftDistinctiveVertex = (
@@ -104,16 +104,42 @@ const shiftDistinctiveVertex = (
   const width = silhouette.bounds.max[0] - silhouette.bounds.min[0];
   const changed = polygon.map((point, index): Vec2 =>
     index === chosen ? [point[0] + width * fraction, point[1]] : point);
-  return canonicalizeSilhouette({ polygons: [changed, ...silhouette.polygons.slice(1)], bounds: silhouette.bounds });
+  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
 };
 
-/**
- * Produce wrong openings that resemble genuine projection mistakes. Exact
- * alternative principal projections are themselves physically valid openings,
- * so they are deliberately made slightly too small before being admitted as
- * distractors. Every candidate is rejected if it contains any known valid
- * principal projection of the object.
- */
+const pointDistance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const contourDistance = (first: CanonicalSection2D, second: CanonicalSection2D): number => {
+  const a = first.polygons[0] ?? [];
+  const b = second.polygons[0] ?? [];
+  if (a.length === 0 || b.length === 0) return Number.POSITIVE_INFINITY;
+  const scale = Math.max(
+    first.bounds.max[0] - first.bounds.min[0],
+    first.bounds.max[1] - first.bounds.min[1],
+    second.bounds.max[0] - second.bounds.min[0],
+    second.bounds.max[1] - second.bounds.min[1],
+    EPS.length,
+  );
+  const directed = (source: readonly Vec2[], target: readonly Vec2[]): number =>
+    Math.max(...source.map((point) => Math.min(...target.map((candidate) => pointDistance(point, candidate))))) / scale;
+  return Math.max(directed(a, b), directed(b, a));
+};
+
+const meaningfullyDifferent = (first: CanonicalSection2D, second: CanonicalSection2D): boolean => {
+  const firstWidth = first.bounds.max[0] - first.bounds.min[0];
+  const firstHeight = first.bounds.max[1] - first.bounds.min[1];
+  const secondWidth = second.bounds.max[0] - second.bounds.min[0];
+  const secondHeight = second.bounds.max[1] - second.bounds.min[1];
+  const widthDifference = Math.abs(secondWidth - firstWidth) / Math.max(firstWidth, secondWidth, EPS.length);
+  const heightDifference = Math.abs(secondHeight - firstHeight) / Math.max(firstHeight, secondHeight, EPS.length);
+  const firstVertices = first.polygons[0]?.length ?? 0;
+  const secondVertices = second.polygons[0]?.length ?? 0;
+  return widthDifference >= 0.05
+    || heightDifference >= 0.05
+    || firstVertices !== secondVertices
+    || contourDistance(first, second) >= 0.045;
+};
+
+/** Produce coherent wrong openings and choose a pairwise-separated A–E set. */
 export const generateApertureDistractors = (
   correct: CanonicalSection2D,
   validPrincipalProjections: readonly CanonicalSection2D[] = [correct],
@@ -123,50 +149,85 @@ export const generateApertureDistractors = (
 
   for (const [index, projection] of validPrincipalProjections.entries()) {
     if (silhouetteFingerprint(projection) === silhouetteFingerprint(correct)) continue;
-    candidates.push({
-      silhouette: scaleAroundCenter(projection, 0.88, 0.96),
-      reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-width" } },
-    });
-    candidates.push({
-      silhouette: scaleAroundCenter(projection, 0.96, 0.87),
-      reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-height" } },
-    });
+    candidates.push(
+      {
+        silhouette: scaleAroundCenter(projection, 0.86, 0.96),
+        reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-width" } },
+      },
+      {
+        silhouette: scaleAroundCenter(projection, 0.96, 0.85),
+        reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-height" } },
+      },
+    );
   }
 
   candidates.push(
     {
-      silhouette: scaleAroundCenter(correct, 0.86, 1),
-      reason: { type: "too-narrow", details: { axis: "x", factor: 0.86 } },
+      silhouette: scaleAroundCenter(correct, 0.84, 1),
+      reason: { type: "too-narrow", details: { axis: "x", factor: 0.84 } },
     },
     {
-      silhouette: scaleAroundCenter(correct, 1, 0.86),
-      reason: { type: "too-narrow", details: { axis: "y", factor: 0.86 } },
+      silhouette: scaleAroundCenter(correct, 1, 0.84),
+      reason: { type: "too-narrow", details: { axis: "y", factor: 0.84 } },
     },
     {
-      silhouette: shiftDistinctiveVertex(correct, 0.13),
-      reason: { type: "wrong-position", details: { mutation: "shift-distinctive-corner" } },
+      silhouette: shiftDistinctiveVertex(correct, 0.15),
+      reason: { type: "wrong-position", details: { mutation: "shift-distinctive-corner-right" } },
     },
     {
-      silhouette: addNotch(correct, 0.2),
+      silhouette: shiftDistinctiveVertex(correct, -0.15),
+      reason: { type: "wrong-position", details: { mutation: "shift-distinctive-corner-left" } },
+    },
+    {
+      silhouette: addNotch(correct, 0.22),
       reason: { type: "wrong-concavity", details: { mutation: "added-notch" } },
     },
     {
-      silhouette: shear(correct, 0.16),
-      reason: { type: "wrong-position", details: { mutation: "skewed-feature-alignment" } },
+      silhouette: shear(correct, 0.18),
+      reason: { type: "wrong-position", details: { mutation: "skewed-feature-alignment-right" } },
+    },
+    {
+      silhouette: shear(correct, -0.18),
+      reason: { type: "wrong-position", details: { mutation: "skewed-feature-alignment-left" } },
     },
   );
 
   const correctFingerprint = silhouetteFingerprint(correct);
   const fingerprints = new Set([correctFingerprint]);
-  const distractors: ApertureDistractor[] = [];
+  const eligible: ApertureDistractor[] = [];
   for (const candidate of candidates) {
     const fingerprint = silhouetteFingerprint(candidate.silhouette);
     if (fingerprints.has(fingerprint)) continue;
     if (validPrincipalProjections.some((projection) => apertureContains(candidate.silhouette, projection))) continue;
+    if (!meaningfullyDifferent(correct, candidate.silhouette)) continue;
     fingerprints.add(fingerprint);
-    distractors.push({ ...candidate, fingerprint });
-    if (distractors.length === count) return distractors;
+    eligible.push({ ...candidate, fingerprint });
   }
 
-  throw new Error(`Could not generate ${count} physically invalid, visually distinct aperture distractors`);
+  const selected: ApertureDistractor[] = [];
+  while (selected.length < count) {
+    let best: ApertureDistractor | undefined;
+    let bestScore = -1;
+    for (const candidate of eligible) {
+      if (selected.includes(candidate)) continue;
+      if (selected.some(({ silhouette }) => !meaningfullyDifferent(silhouette, candidate.silhouette))) continue;
+      const score = selected.length === 0
+        ? contourDistance(correct, candidate.silhouette)
+        : Math.min(
+          contourDistance(correct, candidate.silhouette),
+          ...selected.map(({ silhouette }) => contourDistance(silhouette, candidate.silhouette)),
+        );
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    if (best === undefined) break;
+    selected.push(best);
+  }
+
+  if (selected.length < count) {
+    throw new Error(`Could not generate ${count} physically invalid, pairwise-separated aperture distractors`);
+  }
+  return selected;
 };
