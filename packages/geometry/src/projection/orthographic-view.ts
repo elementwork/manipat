@@ -168,17 +168,21 @@ export const createOrthographicView = (
   const rayLength = Math.hypot(...dimensions) * 3 + 1;
   const visible: Segment2[] = [];
   const hidden: Segment2[] = [];
-  const subdivisions = 4;
+
+  // Fine fragment classification prevents a short visible portion from making
+  // an entire edge appear through an occluding face. Each fragment is judged at
+  // its midpoint, then adjacent fragments with the same state are merged below.
+  const subdivisions = 24;
   for (const edge of topology.edges) {
     for (let part = 0; part < subdivisions; part += 1) {
-      const start = pointAt(edge.vertices.a, edge.vertices.b, part / subdivisions);
-      const end = pointAt(edge.vertices.a, edge.vertices.b, (part + 1) / subdivisions);
+      const startT = part / subdivisions;
+      const endT = (part + 1) / subdivisions;
+      const start = pointAt(edge.vertices.a, edge.vertices.b, startT);
+      const end = pointAt(edge.vertices.a, edge.vertices.b, endT);
       const projected = canonicalSegment({ a: projectPoint(start, frame), b: projectPoint(end, frame) });
       if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) <= EPS.projection) continue;
-      // Sample multiple points: endpoints + interior samples
-      // An edge is visible if ANY sample point is visible (handles curved surfaces)
-      const sampleTs = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9];
-      const edgeVisible = sampleTs.some((t) => isVisible(mesh, pointAt(start, end, t), frame.viewDirection, rayLength));
+      const midpoint = pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2);
+      const edgeVisible = isVisible(mesh, midpoint, frame.viewDirection, rayLength);
       (edgeVisible ? visible : hidden).push(projected);
     }
   }
