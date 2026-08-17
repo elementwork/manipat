@@ -14,7 +14,7 @@ export const validatePaperFoldingQuestion = (
   const matches = solvePaperFoldingQuestion(question);
   const allHoles = question.choices.flatMap(({ holes }) => holes);
   const checks = [
-    check("fold-count", question.prompt.folds.length >= 1 && question.prompt.folds.length <= 3),
+    check("fold-count", question.prompt.folds.length >= 1 && question.prompt.folds.length <= 5),
     check("choice-count", question.choices.length === 5),
     check("unique-choices", new Set(question.choices.map(({ fingerprint }) => fingerprint)).size === 5),
     check("exactly-one-answer", matches.length === 1),

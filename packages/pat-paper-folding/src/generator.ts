@@ -39,11 +39,42 @@ const THREE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
   [ANTI_DIAGONAL, HORIZONTAL, VERTICAL], [ANTI_DIAGONAL, HORIZONTAL, DIAGONAL],
   [ANTI_DIAGONAL, DIAGONAL, VERTICAL], [ANTI_DIAGONAL, DIAGONAL, HORIZONTAL],
 ];
+const FOUR_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] = [
+  [VERTICAL, HORIZONTAL, DIAGONAL, ANTI_DIAGONAL],
+  [VERTICAL, HORIZONTAL, ANTI_DIAGONAL, DIAGONAL],
+  [VERTICAL, DIAGONAL, HORIZONTAL, ANTI_DIAGONAL],
+  [VERTICAL, DIAGONAL, ANTI_DIAGONAL, HORIZONTAL],
+  [VERTICAL, ANTI_DIAGONAL, HORIZONTAL, DIAGONAL],
+  [VERTICAL, ANTI_DIAGONAL, DIAGONAL, HORIZONTAL],
+  [HORIZONTAL, VERTICAL, DIAGONAL, ANTI_DIAGONAL],
+  [HORIZONTAL, VERTICAL, ANTI_DIAGONAL, DIAGONAL],
+  [HORIZONTAL, DIAGONAL, VERTICAL, ANTI_DIAGONAL],
+  [HORIZONTAL, DIAGONAL, ANTI_DIAGONAL, VERTICAL],
+  [HORIZONTAL, ANTI_DIAGONAL, VERTICAL, DIAGONAL],
+  [HORIZONTAL, ANTI_DIAGONAL, DIAGONAL, VERTICAL],
+  [DIAGONAL, VERTICAL, HORIZONTAL, ANTI_DIAGONAL],
+  [DIAGONAL, VERTICAL, ANTI_DIAGONAL, HORIZONTAL],
+  [DIAGONAL, HORIZONTAL, VERTICAL, ANTI_DIAGONAL],
+  [DIAGONAL, HORIZONTAL, ANTI_DIAGONAL, VERTICAL],
+  [DIAGONAL, ANTI_DIAGONAL, VERTICAL, HORIZONTAL],
+  [DIAGONAL, ANTI_DIAGONAL, HORIZONTAL, VERTICAL],
+  [ANTI_DIAGONAL, VERTICAL, HORIZONTAL, DIAGONAL],
+  [ANTI_DIAGONAL, VERTICAL, DIAGONAL, HORIZONTAL],
+  [ANTI_DIAGONAL, HORIZONTAL, VERTICAL, DIAGONAL],
+  [ANTI_DIAGONAL, HORIZONTAL, DIAGONAL, VERTICAL],
+  [ANTI_DIAGONAL, DIAGONAL, VERTICAL, HORIZONTAL],
+  [ANTI_DIAGONAL, DIAGONAL, HORIZONTAL, VERTICAL],
+];
+const FOLD_CYCLE: readonly FoldInstruction[] = [VERTICAL, HORIZONTAL, DIAGONAL, ANTI_DIAGONAL];
+const FIVE_FOLD_PROGRAMS: readonly (readonly FoldInstruction[])[] =
+  FOUR_FOLD_PROGRAMS.map((program, index) => [...program, FOLD_CYCLE[index % 4]!]);
 const PROGRAMS: readonly (readonly FoldInstruction[])[] = [
   [VERTICAL], [HORIZONTAL], [DIAGONAL], [ANTI_DIAGONAL],
   [VERTICAL, HORIZONTAL], [HORIZONTAL, VERTICAL],
   [VERTICAL, DIAGONAL], [HORIZONTAL, ANTI_DIAGONAL],
   ...THREE_FOLD_PROGRAMS,
+  ...FOUR_FOLD_PROGRAMS,
+  ...FIVE_FOLD_PROGRAMS,
 ];
 
 const patternFingerprint = (holes: readonly Vec2[]): string =>
@@ -95,10 +126,10 @@ export const generatePaperFoldingQuestion = (
   difficulty: 1 | 2 | 3 | 4 | 5 = 3,
 ): PaperFoldingQuestion => {
   const random = createRandomSource(seed);
-  const eligible = PROGRAMS.filter((program) => {
-    const targetCount = difficulty <= 2 ? 1 : difficulty <= 4 ? 2 : 3;
-    return program.length === targetCount;
-  });
+  // difficulty controls fold count range: 1→1-2, 2→2-3, 3→3-4, 4→4-5, 5→5
+  const minFolds = Math.max(1, difficulty);
+  const maxFolds = Math.min(5, difficulty + 1);
+  const eligible = PROGRAMS.filter((program) => program.length >= minFolds && program.length <= maxFolds);
   const folds = random.fork("folds").pick(eligible);
   const folded = folds.reduce(applyFold, createInitialFoldState());
   const locations = [...new Map(folded.layers.map(({ currentCenter }) => [
@@ -153,7 +184,7 @@ export const generatePaperFoldingQuestion = (
     },
     difficulty: {
       raw: folds.length * 10 + punches.length * 3 + correctHoles.length,
-      normalized: Math.min(1, (folds.length * 10 + punches.length * 3 + correctHoles.length) / 45),
+      normalized: Math.min(1, (folds.length * 10 + punches.length * 3 + correctHoles.length) / 70),
       band: difficulty,
       components: { foldCount: folds.length, punchCount: punches.length, holeCount: correctHoles.length },
     },

@@ -13,7 +13,9 @@ export type TfeDistractorMutation =
   | "move-line"
   | "shorten-line"
   | "visibility-flip"
-  | "mirror-view";
+  | "mirror-view"
+  | "add-edge"
+  | "delete-edge";
 
 export interface TfeChoice extends TfeDiagram {
   readonly mutation?: TfeDistractorMutation;
