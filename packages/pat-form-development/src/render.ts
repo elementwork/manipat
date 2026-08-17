@@ -69,6 +69,16 @@ export const renderNet = (net: PolyhedronNet, patterns: Readonly<Record<string, 
 const transformPoint = ([x, y, z]: Vec3, chirality: FormDevelopmentChoice["chirality"]): Vec3 =>
   chirality === "mirrored" ? [-x, y, z] : [x, y, z];
 
+const rotateForView = ([x, y, z]: Vec3, quarterTurns: 0 | 1 | 2 | 3): Vec3 => {
+  switch (quarterTurns) {
+    case 0: return [x, y, z];
+    case 1: return [-y, x, z];
+    case 2: return [-x, -y, z];
+    case 3: return [y, -x, z];
+    default: return quarterTurns satisfies never;
+  }
+};
+
 const project = ([x, y, z]: Vec3): Vec2 => [(x - y) * Math.sqrt(3) / 2, (x + y) * 0.5 - z];
 const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross3 = (a: Vec3, b: Vec3): Vec3 => [
@@ -92,7 +102,9 @@ export const renderFoldedChoice = (
   const sourceVertices = choice.vertices !== undefined && choice.vertices.length === polyhedron.vertices.length
     ? choice.vertices
     : polyhedron.vertices;
-  const transformed = sourceVertices.map((vertex) => transformPoint(vertex, choice.chirality));
+  const quarterTurns = choice.viewQuarterTurns ?? 0;
+  const transformed = sourceVertices.map((vertex) =>
+    rotateForView(transformPoint(vertex, choice.chirality), quarterTurns));
   const solidCenter = average3(transformed);
   const faces = polyhedron.faces.flatMap((face) => {
     const vertices = face.vertexIds.map((id): Vec3 => transformed[id] ?? [0, 0, 0]);
