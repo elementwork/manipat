@@ -87,9 +87,14 @@ export const renderFoldedChoice = (
 ): string => {
   const transformed = polyhedron.vertices.map((vertex) => transformPoint(vertex, choice.chirality));
   const faces = polyhedron.faces.flatMap((face) => {
-    const vertices = face.vertexIds.map((id) => transformed[id] ?? [0, 0, 0] as Vec3);
+    const vertices = face.vertexIds.map((id): Vec3 => transformed[id] ?? [0, 0, 0]);
     if (vertices.length < 3) return [];
-    const normal = cross3(subtract(vertices[1]!, vertices[0]!), subtract(vertices[2]!, vertices[0]!));
+    const rawNormal = cross3(subtract(vertices[1]!, vertices[0]!), subtract(vertices[2]!, vertices[0]!));
+    // Reflection changes handedness while face vertex IDs retain their original
+    // winding. Restore outward-normal orientation for back-face culling.
+    const normal: Vec3 = choice.chirality === "mirrored"
+      ? [-rawNormal[0], -rawNormal[1], -rawNormal[2]]
+      : rawNormal;
     if (dot3(normal, CAMERA) <= 1e-9) return [];
     const polygon = vertices.map(project);
     const depth = vertices.reduce((sum, [x, y, z]) => sum + x - y + z, 0) / vertices.length;
