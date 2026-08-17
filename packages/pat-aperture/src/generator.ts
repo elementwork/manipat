@@ -19,7 +19,7 @@ import {
   type ProjectionFrame,
   type SolidHandle,
 } from "@manipat/geometry";
-import { APERTURE_TEMPLATES } from "@manipat/object-generator";
+import { APERTURE_COMPLEX_TEMPLATES, APERTURE_TEMPLATES } from "@manipat/object-generator";
 import { generateApertureDistractors } from "./distractors.js";
 import {
   renderApertureChoice,
@@ -60,6 +60,14 @@ const concavityCount = (polygon: readonly Vec2[]): number => polygon.reduce(
   0,
 );
 
+const projectionComplexity = (silhouette: CanonicalSection2D): number => {
+  const polygons = silhouette.polygons;
+  const outer = polygons[0] ?? [];
+  return outer.length
+    + concavityCount(outer) * 2
+    + Math.max(0, polygons.length - 1) * 4;
+};
+
 const difficultyFor = (
   silhouette: CanonicalSection2D,
   requestedBand: 1 | 2 | 3 | 4 | 5,
@@ -76,6 +84,7 @@ const difficultyFor = (
       requestedBand,
       concavityCount: concavities,
       vertexCount,
+      projectionComplexity: projectionComplexity(silhouette),
     },
   };
 };
@@ -107,7 +116,10 @@ export class ApertureGenerator {
     difficulty: 1 | 2 | 3 | 4 | 5 = 3,
   ): ApertureQuestion {
     const rootRandom = createRandomSource(seed);
-    const objectTemplate = rootRandom.fork("template").pick(APERTURE_TEMPLATES);
+    const templatePool = difficulty >= 3
+      ? [...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_TEMPLATES]
+      : [...APERTURE_COMPLEX_TEMPLATES, ...APERTURE_TEMPLATES];
+    const objectTemplate = rootRandom.fork("template").pick(templatePool);
     const generated = objectTemplate.instantiate({
       kernel: this.#kernel,
       seed,
@@ -132,17 +144,21 @@ export class ApertureGenerator {
     ])).values()];
     if (uniquePrincipal.length === 0) throw new Error("Aperture object produced no principal projection");
 
-    const target = rootRandom.fork("target-projection").pick(uniquePrincipal);
+    const minimumComplexity = ({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8 } as const)[difficulty];
+    const complexCandidates = uniquePrincipal.filter(({ silhouette }) =>
+      projectionComplexity(silhouette) >= minimumComplexity);
+    const rankedCandidates = [...uniquePrincipal].sort((a, b) =>
+      projectionComplexity(b.silhouette) - projectionComplexity(a.silhouette));
+    const targetPool = complexCandidates.length > 0
+      ? complexCandidates
+      : rankedCandidates.slice(0, Math.min(2, rankedCandidates.length));
+    const target = rootRandom.fork("target-projection").pick(targetPool);
     const orientationDegrees = target.orientation;
     const correctSilhouette = target.silhouette;
     const targetFingerprint = silhouetteFingerprint(correctSilhouette);
 
-    // The object illustration is a stable pictorial/isometric drawing. A small
-    // discrete spin gives variety while preserving readable feature alignment.
     const pictorialSpin = rootRandom.fork("pictorial-spin").pick([0, 90, 180, 270] as const);
-    using pictorialSolid = pictorialSpin === 0
-      ? this.#kernel.rotate(normalized, [0, 0, 0])
-      : this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
+    using pictorialSolid = this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
     const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
     const pictorialSvg = renderAperturePictorial(createOrthographicView(pictorialMesh, ISOMETRIC_FRAME));
 
@@ -215,6 +231,7 @@ export class ApertureGenerator {
       metadata: {
         normalization: normalizedResult.transform,
         projectionArea: Math.abs(signedPolygonArea(correctSilhouette.polygons[0] ?? [])),
+        projectionComplexity: projectionComplexity(correctSilhouette),
         mode: "principal-projection-exact-fit-v2",
         principalProjectionCount: uniquePrincipal.length,
         pictorialSpin,
