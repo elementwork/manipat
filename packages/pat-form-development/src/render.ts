@@ -89,7 +89,7 @@ export const renderFoldedChoice = (
   choice: Omit<FormDevelopmentChoice, "svg">,
   title: string,
 ): string => {
-  const sourceVertices = choice.vertices.length === polyhedron.vertices.length
+  const sourceVertices = choice.vertices !== undefined && choice.vertices.length === polyhedron.vertices.length
     ? choice.vertices
     : polyhedron.vertices;
   const transformed = sourceVertices.map((vertex) => transformPoint(vertex, choice.chirality));
