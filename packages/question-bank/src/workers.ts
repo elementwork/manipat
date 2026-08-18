@@ -61,7 +61,9 @@ const runWorker = (config: BatchConfig): Promise<BatchResult> => new Promise((re
   worker.once("message", (message: BatchResult) => {
     result = message;
   });
-  worker.once("error", (error) => rejectOnce(error));
+  worker.once("error", (error: unknown) => rejectOnce(
+    error instanceof Error ? error : new Error(String(error)),
+  ));
   worker.once("exit", (code) => {
     if (settled) return;
     if (code !== 0) {
