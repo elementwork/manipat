@@ -38,6 +38,7 @@ jobs:
       - name: Unit and fuzz tests
         run: pnpm test
 
+      # Exercises the worker-thread scheduler as well as full-set assembly.
       - name: Full 90-question offline smoke set
         run: |
           pnpm dat generate set \
