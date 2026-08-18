@@ -13,12 +13,13 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.14.0'
+          package-manager-cache: false
 
       - name: Enable pnpm
         run: |
@@ -63,7 +64,7 @@ jobs:
 
       - name: Upload generated HTML
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pat-verification-output
           path: output/*.html
