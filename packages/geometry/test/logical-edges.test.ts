@@ -5,6 +5,7 @@ import {
   createOrthographicView,
   extractLogicalTopology,
   mergeCollinearSegments,
+  type CanonicalMesh,
 } from "../src/index.js";
 
 describe("logical topology and TFE projection", () => {
@@ -15,6 +16,29 @@ describe("logical topology and TFE projection", () => {
     const topology = extractLogicalTopology(mesh);
     expect(topology.faces).toHaveLength(6);
     expect(topology.edges).toHaveLength(12);
+  });
+
+  it("ignores zero-area triangles emitted at CSG coincidence boundaries", () => {
+    const mesh: CanonicalMesh = {
+      positions: new Float32Array([
+        0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
+      ]),
+      indices: new Uint32Array([
+        0, 1, 2,
+        0, 0, 3,
+      ]),
+      vertexCount: 4,
+      triangleCount: 2,
+      bounds: { min: [0, 0, 0], max: [1, 1, 0] },
+    };
+    const topology = extractLogicalTopology(mesh);
+    expect(topology.triangleNormals[1]).toEqual([0, 0, 0]);
+    expect(topology.faces).toHaveLength(1);
+    expect(topology.faces[0]?.triangleIds).toEqual([0]);
+    expect(topology.edges).toHaveLength(3);
   });
 
   it("projects a cube to four visible lines with solid-over-hidden priority", async () => {
