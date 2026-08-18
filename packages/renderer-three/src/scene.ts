@@ -115,7 +115,12 @@ class ThreePictorialPreview implements PictorialPreview {
       this.#surfaceGeometry,
       options.edgeThresholdDegrees ?? 20,
     );
-    this.hiddenEdges = new LineSegments(this.#edgeGeometry, createHiddenEdgeMaterial());
+    const dashSize = Math.max(radius * 0.035, 0.02);
+    const gapSize = Math.max(radius * 0.022, 0.012);
+    this.hiddenEdges = new LineSegments(
+      this.#edgeGeometry,
+      createHiddenEdgeMaterial(dashSize, gapSize),
+    );
     this.hiddenEdges.name = "hidden-edges";
     this.hiddenEdges.computeLineDistances();
     this.hiddenEdges.visible = options.ghosted === true;
