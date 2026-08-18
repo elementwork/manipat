@@ -25,6 +25,7 @@ import { createVoxelInstancedRender, type VoxelInstancedRender } from "./voxels.
 export interface QuestionViewerCapabilities {
   readonly ghost: boolean;
   readonly edges: boolean;
+  readonly colorCode: boolean;
   readonly explanation: boolean;
   readonly targetView: boolean;
 }
@@ -39,6 +40,7 @@ export interface QuestionRuntimeViewer extends Disposable {
   setTargetView(): void;
   setAutoRotate(enabled: boolean): void;
   setGhosted(ghosted: boolean): void;
+  setColorCoded(enabled: boolean): void;
   setSurfaceVisible(visible: boolean): void;
   setEdgesVisible(visible: boolean): void;
   setExplanationVisible(visible: boolean): void;
@@ -82,6 +84,7 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.capabilities = Object.freeze({
       ghost: true,
       edges: true,
+      colorCode: true,
       explanation: this.#highlightTriangles.length > 0,
       targetView: payload.targetPreset !== undefined || payload.targetRotationDegrees !== undefined,
     });
@@ -99,6 +102,7 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.#assertActive();
     this.#preview.setRotation(ZERO_ROTATION);
     this.#preview.clearHighlight();
+    this.#preview.setColorCoded(false);
     this.runtime.reset();
   }
 
@@ -127,9 +131,15 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.runtime.render();
   }
 
+  public setColorCoded(enabled: boolean): void {
+    this.#assertActive();
+    this.#preview.setColorCoded(enabled);
+    this.runtime.render();
+  }
+
   public setSurfaceVisible(visible: boolean): void {
     this.#assertActive();
-    this.#preview.surface.visible = visible;
+    this.#preview.setSurfaceVisible(visible);
     this.runtime.render();
   }
 
@@ -211,6 +221,7 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.capabilities = Object.freeze({
       ghost: false,
       edges: false,
+      colorCode: false,
       explanation: (payload.highlightIndices?.length ?? 0) > 0,
       targetView: payload.targetPreset !== undefined,
     });
@@ -248,6 +259,11 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
   public setGhosted(ghosted: boolean): void {
     this.#assertActive();
     void ghosted;
+  }
+
+  public setColorCoded(enabled: boolean): void {
+    this.#assertActive();
+    void enabled;
   }
 
   public setSurfaceVisible(visible: boolean): void {

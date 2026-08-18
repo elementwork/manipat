@@ -17,7 +17,7 @@ export const renderViewerHtml = (
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ManipAT Interactive Viewer</title>
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-nav button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.paper-guide{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;gap:.8rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-sequence{display:flex;gap:.6rem;overflow-x:auto;padding:.15rem .1rem .45rem}.paper-sequence-item{flex:0 0 112px;background:#fff;border:1px solid #dde1e6;border-radius:.55rem;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-sequence-item svg{width:100%;height:auto;display:block}.paper-sequence-label{text-align:center;font-size:.72rem;color:#636b74;margin-top:.2rem}.paper-main{display:grid;grid-template-columns:minmax(260px,560px) minmax(220px,330px);gap:1rem;align-items:center;justify-content:center;min-height:0}.paper-svg{display:flex;align-items:center;justify-content:center;min-height:280px}.paper-svg svg{width:min(70vw,520px);max-height:58vh;height:auto;display:block}.paper-card{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.85rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-step-title{font-weight:650;margin-bottom:.45rem}.paper-detail{font-size:.88rem;line-height:1.45;color:#3e4650}.paper-stats{font-size:.8rem;line-height:1.5;color:#636b74;margin-top:.7rem;padding-top:.6rem;border-top:1px solid #eceff2}.paper-legend{font-size:.75rem;color:#636b74;margin-top:.65rem}.paper-legend span{display:inline-flex;align-items:center;gap:.25rem;margin-right:.6rem}.dot{width:.62rem;height:.62rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.paper-nav{display:flex;gap:.55rem;align-items:center;justify-content:center;padding:.2rem}.paper-progress{min-width:7rem;text-align:center;font-size:.82rem;color:#59616a}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font-size:.78rem;padding:.4rem .5rem}.paper-main{grid-template-columns:1fr;align-items:start}.paper-svg svg{width:min(92vw,480px);max-height:none}.paper-card{max-width:520px;width:100%;margin:0 auto}.paper-sequence-item{flex-basis:94px}}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-nav button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.color-legend{position:absolute;right:.75rem;top:.75rem;z-index:3;background:rgba(255,255,255,.94);border:1px solid #d8dde3;border-radius:.55rem;padding:.55rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.72rem;color:#58616a;pointer-events:none}.color-legend-title{font-weight:650;color:#303842;margin-bottom:.3rem}.color-legend-row{display:flex;align-items:center;gap:.35rem;margin:.16rem 0}.swatch{width:.72rem;height:.72rem;border-radius:.2rem;border:1px solid rgba(32,36,42,.18)}.swatch.body{background:#d9dde3}.swatch.raised{background:#b9d7f0}.swatch.recess{background:#f0b7aa}.swatch.terminal{background:#f2d38b}.color-legend-note{max-width:15rem;margin-top:.35rem;line-height:1.25;color:#777f88}.paper-guide{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;gap:.8rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-sequence{display:flex;gap:.6rem;overflow-x:auto;padding:.15rem .1rem .45rem}.paper-sequence-item{flex:0 0 112px;background:#fff;border:1px solid #dde1e6;border-radius:.55rem;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-sequence-item svg{width:100%;height:auto;display:block}.paper-sequence-label{text-align:center;font-size:.72rem;color:#636b74;margin-top:.2rem}.paper-main{display:grid;grid-template-columns:minmax(260px,560px) minmax(220px,330px);gap:1rem;align-items:center;justify-content:center;min-height:0}.paper-svg{display:flex;align-items:center;justify-content:center;min-height:280px}.paper-svg svg{width:min(70vw,520px);max-height:58vh;height:auto;display:block}.paper-card{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.85rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-step-title{font-weight:650;margin-bottom:.45rem}.paper-detail{font-size:.88rem;line-height:1.45;color:#3e4650}.paper-stats{font-size:.8rem;line-height:1.5;color:#636b74;margin-top:.7rem;padding-top:.6rem;border-top:1px solid #eceff2}.paper-legend{font-size:.75rem;color:#636b74;margin-top:.65rem}.paper-legend span{display:inline-flex;align-items:center;gap:.25rem;margin-right:.6rem}.dot{width:.62rem;height:.62rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.paper-nav{display:flex;gap:.55rem;align-items:center;justify-content:center;padding:.2rem}.paper-progress{min-width:7rem;text-align:center;font-size:.82rem;color:#59616a}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font-size:.78rem;padding:.4rem .5rem}.paper-main{grid-template-columns:1fr;align-items:start}.paper-svg svg{width:min(92vw,480px);max-height:none}.paper-card{max-width:520px;width:100%;margin:0 auto}.paper-sequence-item{flex-basis:94px}.color-legend{right:.45rem;top:.45rem;max-width:12.5rem}}
 </style>
 <script type="importmap">{"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}</script>
 </head>
@@ -38,6 +38,14 @@ export const renderViewerHtml = (
   </nav>
   <main class="viewer">
     <div id="canvas" class="canvas" aria-label="Interactive Three.js PAT visualization"></div>
+    <div id="color-legend" class="color-legend hidden">
+      <div class="color-legend-title">Color Code · learning cues</div>
+      <div class="color-legend-row"><i class="swatch body"></i>Body / neutral surface</div>
+      <div class="color-legend-row"><i class="swatch raised"></i>Convex / raised feature</div>
+      <div class="color-legend-row"><i class="swatch recess"></i>Hole / recess wall</div>
+      <div class="color-legend-row"><i class="swatch terminal"></i>Interior terminating surface</div>
+      <div class="color-legend-note">Educational geometry cues only; the neutral model remains the canonical exam view.</div>
+    </div>
     <section id="paper-guide" class="paper-guide hidden" aria-label="Paper punching guided explanation">
       <div id="paper-sequence" class="paper-sequence"></div>
       <div class="paper-main">
@@ -60,6 +68,7 @@ export const renderViewerHtml = (
   <footer class="bar secondary">
     <div class="controls" id="runtime-controls">
       <label class="toggle"><input id="auto" type="checkbox"> Auto rotate</label>
+      <label class="toggle" id="color-wrap"><input id="color-code" type="checkbox"> Color Code</label>
       <label class="toggle" id="ghost-wrap"><input id="ghost" type="checkbox"> Ghost / hidden lines</label>
       <label class="toggle"><input id="surface" type="checkbox" checked> Surface</label>
       <label class="toggle" id="edges-wrap"><input id="edges" type="checkbox" checked> Edges</label>
@@ -75,6 +84,7 @@ const payloads = JSON.parse(document.getElementById("payloads").textContent);
 const labels = { "isometric":"3D", "front":"Front", "top":"Top", "right-end":"End" };
 const categoryLabels = { aperture:"Aperture", "view-recognition":"TFE", "paper-folding":"Paper Punching", "cube-counting":"Cube Counting", "form-development":"Form Development" };
 const canvas = document.getElementById("canvas");
+const colorLegend = document.getElementById("color-legend");
 const paperGuide = document.getElementById("paper-guide");
 const paperSequence = document.getElementById("paper-sequence");
 const paperSvg = document.getElementById("paper-svg");
@@ -98,10 +108,12 @@ const previous = document.getElementById("previous");
 const next = document.getElementById("next");
 const position = document.getElementById("position");
 const auto = document.getElementById("auto");
+const colorCode = document.getElementById("color-code");
 const ghost = document.getElementById("ghost");
 const surface = document.getElementById("surface");
 const edges = document.getElementById("edges");
 const explain = document.getElementById("explain");
+const colorWrap = document.getElementById("color-wrap");
 const ghostWrap = document.getElementById("ghost-wrap");
 const edgesWrap = document.getElementById("edges-wrap");
 const explainWrap = document.getElementById("explain-wrap");
@@ -120,10 +132,12 @@ for (const category of [...new Set(payloads.map((payload) => payload.category))]
 
 const resetToggles = () => {
   auto.checked = false;
+  colorCode.checked = false;
   ghost.checked = false;
   surface.checked = true;
   edges.checked = true;
   explain.checked = false;
+  colorLegend.classList.add("hidden");
 };
 
 const pointKey = (point) => Number(point[0]).toFixed(6) + "," + Number(point[1]).toFixed(6);
@@ -138,7 +152,7 @@ const blankSheetSvg = () => {
 };
 
 const paperSvgWithOverlays = (step) => {
-  let base = step.baseSvg ?? blankSheetSvg();
+  const base = step.baseSvg ?? blankSheetSvg();
   let overlays = "";
   if (step.foldLine !== undefined) {
     const point = step.foldLine.point;
@@ -154,7 +168,10 @@ const paperSvgWithOverlays = (step) => {
     const isNew = newKeys.has(pointKey(point));
     overlays += circleSvg(point, isNew ? "#c85f4b" : "#20242a", isNew ? "#9f4536" : "#20242a", "");
   }
-  return base.replace(/<\/svg>\s*$/i, overlays + "</svg>");
+  const closing = base.lastIndexOf("</svg>");
+  return closing >= 0
+    ? base.slice(0, closing) + overlays + base.slice(closing)
+    : base + overlays;
 };
 
 const renderPaperStep = () => {
@@ -184,6 +201,7 @@ const mountPaper = (payload) => {
   paperStep = 0;
   canvas.classList.add("hidden");
   hint.classList.add("hidden");
+  colorLegend.classList.add("hidden");
   paperGuide.classList.remove("hidden");
   runtimeControls.classList.add("hidden");
   viewControls.classList.add("hidden");
@@ -220,6 +238,7 @@ const mountThree = (payload) => {
     viewControls.append(button);
   }
   target.classList.toggle("hidden", !viewer.capabilities.targetView);
+  colorWrap.classList.toggle("hidden", !viewer.capabilities.colorCode);
   ghostWrap.classList.toggle("hidden", !viewer.capabilities.ghost);
   edgesWrap.classList.toggle("hidden", !viewer.capabilities.edges);
   explainWrap.classList.toggle("hidden", !viewer.capabilities.explanation);
@@ -286,9 +305,15 @@ reset.addEventListener("click", () => {
     renderPaperStep();
   } else {
     viewer?.reset();
+    colorCode.checked = false;
+    colorLegend.classList.add("hidden");
   }
 });
 auto.addEventListener("change", () => viewer?.setAutoRotate(auto.checked));
+colorCode.addEventListener("change", () => {
+  viewer?.setColorCoded(colorCode.checked);
+  colorLegend.classList.toggle("hidden", !colorCode.checked || colorWrap.classList.contains("hidden"));
+});
 ghost.addEventListener("change", () => viewer?.setGhosted(ghost.checked));
 surface.addEventListener("change", () => viewer?.setSurfaceVisible(surface.checked));
 edges.addEventListener("change", () => viewer?.setEdgesVisible(edges.checked));

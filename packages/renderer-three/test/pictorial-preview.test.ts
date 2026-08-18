@@ -41,7 +41,7 @@ describe("pictorial previews", () => {
     }
   });
 
-  it("supports rotation, highlighting, ghost hidden lines, and projection overlays", async () => {
+  it("supports color coding, rotation, highlighting, ghost hidden lines, and projection overlays", async () => {
     const kernel = await createManifoldKernel();
     using cube = kernel.cube([100, 80, 60], true);
     const mesh = { ...kernel.getMesh(cube), groups: [{ featureId: "body", start: 0, count: 6 }] };
@@ -51,9 +51,19 @@ describe("pictorial previews", () => {
     preview.highlightFeature("body");
     expect(preview.object.getObjectByName("selection-highlight")).toBeDefined();
 
+    expect(preview.semanticSurface.visible).toBe(false);
+    expect(preview.semanticSurface.geometry.getAttribute("color").count).toBe(mesh.triangleCount * 3);
+    preview.setColorCoded(true);
+    expect(preview.surface.visible).toBe(false);
+    expect(preview.semanticSurface.visible).toBe(true);
+    preview.setSurfaceVisible(false);
+    expect(preview.semanticSurface.visible).toBe(false);
+    preview.setSurfaceVisible(true);
+    expect(preview.semanticSurface.visible).toBe(true);
+
     expect(preview.hiddenEdges.visible).toBe(false);
     preview.setGhosted(true);
-    expect(preview.surface.material).toMatchObject({ transparent: true, opacity: 0.18 });
+    expect(preview.semanticSurface.material).toMatchObject({ transparent: true, opacity: 0.24 });
     expect(preview.hiddenEdges.visible).toBe(true);
     expect(preview.hiddenEdges.material).toBeInstanceOf(LineDashedMaterial);
     preview.setEdgesVisible(false);
@@ -61,6 +71,10 @@ describe("pictorial previews", () => {
     expect(preview.hiddenEdges.visible).toBe(false);
     preview.setEdgesVisible(true);
     expect(preview.hiddenEdges.visible).toBe(true);
+
+    preview.setColorCoded(false);
+    expect(preview.surface.visible).toBe(true);
+    expect(preview.semanticSurface.visible).toBe(false);
 
     preview.addProjectionPlane();
     expect(preview.object.getObjectByName("projection-plane")).toBeDefined();
