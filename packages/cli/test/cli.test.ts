@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const cli = path.resolve("packages/cli/dist/index.js");
+const viewerCli = path.resolve("packages/cli/dist/visualize-bin.js");
 
 describe("offline CLI", () => {
   it("lists categories and passes doctor", async () => {
@@ -16,7 +17,7 @@ describe("offline CLI", () => {
     expect(JSON.parse(doctor.stdout)).toMatchObject({ passed: true });
   });
 
-  it("generates and validates a six-category offline set deterministically", async () => {
+  it("generates, validates, and rebuilds runtime payloads for a six-category offline set", async () => {
     const first = path.join(await mkdtemp(path.join(tmpdir(), "manipat-cli-first-")), "exam.html");
     const second = path.join(await mkdtemp(path.join(tmpdir(), "manipat-cli-second-")), "exam.html");
     const argumentsFor = (output: string) => [
@@ -33,6 +34,19 @@ describe("offline CLI", () => {
     expect(firstHtml).not.toMatch(/<link|<script[^>]+src=/i);
     const validation = await execFileAsync(process.execPath, [cli, "validate", first]);
     expect(JSON.parse(validation.stdout)).toMatchObject({ passed: true, questionCount: 6 });
+
+    const runtimeCategories = [
+      ["aperture", "aperture", "mesh"],
+      ["tfe", "view-recognition", "mesh"],
+      ["cubes", "cube-counting", "voxels"],
+      ["form", "form-development", "mesh"],
+    ] as const;
+    for (const [requested, category, kind] of runtimeCategories) {
+      const result = await execFileAsync(process.execPath, [
+        viewerCli, first, "--category", requested, "--dry-run",
+      ]);
+      expect(JSON.parse(result.stdout)).toMatchObject({ category, kind });
+    }
   }, 60_000);
 
   it("sanitizes imported question IDs used by inspect HTML and default filenames", async () => {
