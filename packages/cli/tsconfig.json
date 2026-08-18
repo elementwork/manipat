@@ -5,7 +5,6 @@
   "references": [
     { "path": "../core" },
     { "path": "../geometry" },
-    { "path": "../object-generator" },
     { "path": "../question-bank" },
     { "path": "../renderer-three" }
   ]
