@@ -44,6 +44,14 @@ const shear = (
   return mapSilhouette(silhouette, ([x, y]): Vec2 => [x + (y - cy) * amount, y]);
 };
 
+const withOuterPolygon = (
+  silhouette: CanonicalSection2D,
+  polygon: readonly Vec2[],
+): CanonicalSection2D => canonicalizeSilhouette({
+  polygons: [polygon, ...silhouette.polygons.slice(1)],
+  bounds: silhouette.bounds,
+});
+
 const longestEdgeIndex = (polygon: readonly Vec2[]): number => {
   let best = 0;
   let bestLength = 0;
@@ -82,7 +90,7 @@ const addNotch = (silhouette: CanonicalSection2D, depthFactor: number): Canonica
   ];
   const changed = [...polygon];
   changed.splice(index + 1, 0, notch);
-  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
+  return withOuterPolygon(silhouette, changed);
 };
 
 const shiftDistinctiveVertex = (
@@ -104,7 +112,7 @@ const shiftDistinctiveVertex = (
   const width = silhouette.bounds.max[0] - silhouette.bounds.min[0];
   const changed = polygon.map((point, index): Vec2 =>
     index === chosen ? [point[0] + width * fraction, point[1]] : point);
-  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
+  return withOuterPolygon(silhouette, changed);
 };
 
 const pointDistance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -131,10 +139,11 @@ const meaningfullyDifferent = (first: CanonicalSection2D, second: CanonicalSecti
   const secondHeight = second.bounds.max[1] - second.bounds.min[1];
   const widthDifference = Math.abs(secondWidth - firstWidth) / Math.max(firstWidth, secondWidth, EPS.length);
   const heightDifference = Math.abs(secondHeight - firstHeight) / Math.max(firstHeight, secondHeight, EPS.length);
-  const firstVertices = first.polygons[0]?.length ?? 0;
-  const secondVertices = second.polygons[0]?.length ?? 0;
+  const firstVertices = first.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+  const secondVertices = second.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
   return widthDifference >= 0.05
     || heightDifference >= 0.05
+    || first.polygons.length !== second.polygons.length
     || firstVertices !== secondVertices
     || contourDistance(first, second) >= 0.045;
 };
@@ -151,25 +160,39 @@ export const generateApertureDistractors = (
     if (silhouetteFingerprint(projection) === silhouetteFingerprint(correct)) continue;
     candidates.push(
       {
-        silhouette: scaleAroundCenter(projection, 0.86, 0.96),
+        silhouette: scaleAroundCenter(projection, 0.84, 0.95),
         reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-width" } },
       },
       {
-        silhouette: scaleAroundCenter(projection, 0.96, 0.85),
+        silhouette: scaleAroundCenter(projection, 0.95, 0.83),
         reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-height" } },
       },
     );
   }
 
+  // Conservative shrink variants are guaranteed not to admit the true object
+  // along the affected dimension. Keeping several separated variants prevents
+  // an expensive advanced CSG model from being discarded merely because the
+  // more semantic mutations happen to collide for one silhouette.
+  for (const [sx, sy] of [
+    [0.80, 1.00],
+    [1.00, 0.80],
+    [0.84, 0.91],
+    [0.92, 0.82],
+    [0.86, 0.86],
+    [0.76, 0.94],
+    [0.94, 0.76],
+  ] as const) {
+    candidates.push({
+      silhouette: scaleAroundCenter(correct, sx, sy),
+      reason: {
+        type: "too-narrow",
+        details: { axis: sx === 1 ? "y" : sy === 1 ? "x" : "xy", factorX: sx, factorY: sy },
+      },
+    });
+  }
+
   candidates.push(
-    {
-      silhouette: scaleAroundCenter(correct, 0.84, 1),
-      reason: { type: "too-narrow", details: { axis: "x", factor: 0.84 } },
-    },
-    {
-      silhouette: scaleAroundCenter(correct, 1, 0.84),
-      reason: { type: "too-narrow", details: { axis: "y", factor: 0.84 } },
-    },
     {
       silhouette: shiftDistinctiveVertex(correct, 0.15),
       reason: { type: "wrong-position", details: { mutation: "shift-distinctive-corner-right" } },
