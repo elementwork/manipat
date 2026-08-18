@@ -41,6 +41,19 @@ interface PreparedTriangle {
   readonly maxY: number;
 }
 
+interface TriangleGrid {
+  readonly triangles: readonly PreparedTriangle[];
+  readonly cells: readonly (readonly number[])[];
+  readonly columns: number;
+  readonly rows: number;
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+  readonly cellWidth: number;
+  readonly cellHeight: number;
+}
+
 const pointAt = (a: Vec3, b: Vec3, t: number): Vec3 => add3(a, scale3(subtract3(b, a), t));
 const projectPoint = (point: Vec3, frame: ProjectionFrame): Vec2 => [
   dot3(point, frame.imageRight),
@@ -117,19 +130,103 @@ const prepareTriangles = (
   return triangles;
 };
 
+const gridCoordinate = (
+  value: number,
+  minimum: number,
+  cellSize: number,
+  count: number,
+): number => Math.max(0, Math.min(count - 1, Math.floor((value - minimum) / cellSize)));
+
+/**
+ * Build a projected uniform grid over triangle bounds. Orthographic visibility
+ * rays retain one fixed image-plane coordinate, so only triangles occupying the
+ * corresponding cell can possibly occlude a sample. The exact ray/triangle
+ * test remains the final authority; this is only a conservative broad phase.
+ */
+const prepareTriangleGrid = (
+  mesh: CanonicalMesh,
+  frame: ProjectionFrame,
+): TriangleGrid => {
+  const triangles = prepareTriangles(mesh, frame);
+  if (triangles.length === 0) {
+    return {
+      triangles,
+      cells: [[]],
+      columns: 1,
+      rows: 1,
+      minX: 0,
+      minY: 0,
+      maxX: 0,
+      maxY: 0,
+      cellWidth: 1,
+      cellHeight: 1,
+    };
+  }
+
+  const minX = Math.min(...triangles.map(({ minX: value }) => value));
+  const minY = Math.min(...triangles.map(({ minY: value }) => value));
+  const maxX = Math.max(...triangles.map(({ maxX: value }) => value));
+  const maxY = Math.max(...triangles.map(({ maxY: value }) => value));
+  const gridSize = Math.max(4, Math.min(32, Math.ceil(Math.sqrt(triangles.length / 2))));
+  const columns = gridSize;
+  const rows = gridSize;
+  const cellWidth = Math.max(EPS.projection, (maxX - minX) / columns);
+  const cellHeight = Math.max(EPS.projection, (maxY - minY) / rows);
+  const cells: number[][] = Array.from({ length: columns * rows }, () => []);
+
+  triangles.forEach((triangle, triangleIndex) => {
+    const firstColumn = gridCoordinate(triangle.minX, minX, cellWidth, columns);
+    const lastColumn = gridCoordinate(triangle.maxX, minX, cellWidth, columns);
+    const firstRow = gridCoordinate(triangle.minY, minY, cellHeight, rows);
+    const lastRow = gridCoordinate(triangle.maxY, minY, cellHeight, rows);
+    for (let row = firstRow; row <= lastRow; row += 1) {
+      for (let column = firstColumn; column <= lastColumn; column += 1) {
+        cells[row * columns + column]?.push(triangleIndex);
+      }
+    }
+  });
+
+  return {
+    triangles,
+    cells,
+    columns,
+    rows,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    cellWidth,
+    cellHeight,
+  };
+};
+
+const candidateTriangles = (
+  grid: TriangleGrid,
+  projected: Vec2,
+): readonly PreparedTriangle[] => {
+  if (grid.triangles.length === 0
+    || projected[0] < grid.minX || projected[0] > grid.maxX
+    || projected[1] < grid.minY || projected[1] > grid.maxY) return [];
+  const column = gridCoordinate(projected[0], grid.minX, grid.cellWidth, grid.columns);
+  const row = gridCoordinate(projected[1], grid.minY, grid.cellHeight, grid.rows);
+  return (grid.cells[row * grid.columns + column] ?? []).flatMap((index) => {
+    const triangle = grid.triangles[index];
+    return triangle === undefined ? [] : [triangle];
+  });
+};
+
 const isVisible = (
-  triangles: readonly PreparedTriangle[],
+  grid: TriangleGrid,
   point: Vec3,
   frame: ProjectionFrame,
   rayLength: number,
 ): boolean => {
   const origin = subtract3(point, scale3(frame.viewDirection, rayLength));
   const projected = projectPoint(point, frame);
-  let closest = Number.POSITIVE_INFINITY;
-  for (const triangle of triangles) {
-    // Orthographic rays retain their projected image coordinate. A triangle
-    // whose projected bounds do not contain that coordinate cannot intersect
-    // the ray, so skip the expensive exact ray/triangle test.
+  const occlusionThreshold = rayLength - EPS.length * 10;
+  for (const triangle of candidateTriangles(grid, projected)) {
+    // The cell test is conservative. Keep the exact projected triangle bounds
+    // check before the more expensive ray/triangle intersection.
     if (projected[0] < triangle.minX || projected[0] > triangle.maxX
       || projected[1] < triangle.minY || projected[1] > triangle.maxY) continue;
     const distance = rayTriangleDistance(
@@ -139,9 +236,11 @@ const isVisible = (
       triangle.b,
       triangle.c,
     );
-    if (distance !== null && distance < closest) closest = distance;
+    // Visibility is boolean, so stop as soon as any true foreground occluder
+    // is found instead of scanning the rest of the projected cell.
+    if (distance !== null && distance < occlusionThreshold) return false;
   }
-  return closest >= rayLength - EPS.length * 10;
+  return true;
 };
 
 const mergePair = (first: Segment2, second: Segment2): Segment2 | null => {
@@ -215,7 +314,7 @@ export const createOrthographicView = (
   const topology = extractLogicalTopology(mesh);
   const dimensions = mesh.bounds.max.map((maximum, index) => maximum - (mesh.bounds.min[index] ?? 0));
   const rayLength = Math.hypot(...dimensions) * 3 + 1;
-  const triangles = prepareTriangles(mesh, frame);
+  const triangleGrid = prepareTriangleGrid(mesh, frame);
   const visible: Segment2[] = [];
   const hidden: Segment2[] = [];
   const subdivisions = options.subdivisions ?? 4;
@@ -231,9 +330,9 @@ export const createOrthographicView = (
       if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) <= EPS.projection) continue;
 
       const edgeVisible = visibilityRule === "midpoint"
-        ? isVisible(triangles, pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2), frame, rayLength)
+        ? isVisible(triangleGrid, pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2), frame, rayLength)
         : [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].some((t) =>
-          isVisible(triangles, pointAt(start, end, t), frame, rayLength));
+          isVisible(triangleGrid, pointAt(start, end, t), frame, rayLength));
       (edgeVisible ? visible : hidden).push(projected);
     }
   }
