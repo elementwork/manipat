@@ -78,7 +78,8 @@ describe("unified question engine and storage", () => {
     expect(html).toContain("manipat-exam-data");
     expect(html).toContain("@page{size:letter portrait");
     expect(html).toContain("data-exam-question");
-    expect(html).toContain("print-break");
+    expect(html).toContain("break-after:page");
+    expect(html).toContain("page-break-after:always");
     expect(html).toContain('class="question-row"');
     expect(html).toContain('font-family="Arial, Helvetica, sans-serif"');
     expect(html).not.toContain("Review answers");
