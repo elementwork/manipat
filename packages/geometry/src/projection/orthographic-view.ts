@@ -31,6 +31,16 @@ export interface OrthographicViewOptions {
   readonly visibilityRule?: "any-sample" | "midpoint";
 }
 
+interface PreparedTriangle {
+  readonly a: Vec3;
+  readonly b: Vec3;
+  readonly c: Vec3;
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minY: number;
+  readonly maxY: number;
+}
+
 const pointAt = (a: Vec3, b: Vec3, t: number): Vec3 => add3(a, scale3(subtract3(b, a), t));
 const projectPoint = (point: Vec3, frame: ProjectionFrame): Vec2 => [
   dot3(point, frame.imageRight),
@@ -77,26 +87,57 @@ const rayTriangleDistance = (
   return distance >= 0 ? distance : null;
 };
 
-const isVisible = (
+const prepareTriangles = (
   mesh: CanonicalMesh,
-  point: Vec3,
-  viewDirection: Vec3,
-  rayLength: number,
-): boolean => {
-  const origin = subtract3(point, scale3(viewDirection, rayLength));
-  let closest = Number.POSITIVE_INFINITY;
+  frame: ProjectionFrame,
+): readonly PreparedTriangle[] => {
+  const triangles: PreparedTriangle[] = [];
   for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) {
     const offset = triangle * 3;
     const ai = mesh.indices[offset];
     const bi = mesh.indices[offset + 1];
     const ci = mesh.indices[offset + 2];
     if (ai === undefined || bi === undefined || ci === undefined) continue;
+    const a = meshVertex(mesh, ai);
+    const b = meshVertex(mesh, bi);
+    const c = meshVertex(mesh, ci);
+    const pa = projectPoint(a, frame);
+    const pb = projectPoint(b, frame);
+    const pc = projectPoint(c, frame);
+    triangles.push({
+      a,
+      b,
+      c,
+      minX: Math.min(pa[0], pb[0], pc[0]) - EPS.projection,
+      maxX: Math.max(pa[0], pb[0], pc[0]) + EPS.projection,
+      minY: Math.min(pa[1], pb[1], pc[1]) - EPS.projection,
+      maxY: Math.max(pa[1], pb[1], pc[1]) + EPS.projection,
+    });
+  }
+  return triangles;
+};
+
+const isVisible = (
+  triangles: readonly PreparedTriangle[],
+  point: Vec3,
+  frame: ProjectionFrame,
+  rayLength: number,
+): boolean => {
+  const origin = subtract3(point, scale3(frame.viewDirection, rayLength));
+  const projected = projectPoint(point, frame);
+  let closest = Number.POSITIVE_INFINITY;
+  for (const triangle of triangles) {
+    // Orthographic rays retain their projected image coordinate. A triangle
+    // whose projected bounds do not contain that coordinate cannot intersect
+    // the ray, so skip the expensive exact ray/triangle test.
+    if (projected[0] < triangle.minX || projected[0] > triangle.maxX
+      || projected[1] < triangle.minY || projected[1] > triangle.maxY) continue;
     const distance = rayTriangleDistance(
       origin,
-      viewDirection,
-      meshVertex(mesh, ai),
-      meshVertex(mesh, bi),
-      meshVertex(mesh, ci),
+      frame.viewDirection,
+      triangle.a,
+      triangle.b,
+      triangle.c,
     );
     if (distance !== null && distance < closest) closest = distance;
   }
@@ -174,6 +215,7 @@ export const createOrthographicView = (
   const topology = extractLogicalTopology(mesh);
   const dimensions = mesh.bounds.max.map((maximum, index) => maximum - (mesh.bounds.min[index] ?? 0));
   const rayLength = Math.hypot(...dimensions) * 3 + 1;
+  const triangles = prepareTriangles(mesh, frame);
   const visible: Segment2[] = [];
   const hidden: Segment2[] = [];
   const subdivisions = options.subdivisions ?? 4;
@@ -189,9 +231,9 @@ export const createOrthographicView = (
       if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) <= EPS.projection) continue;
 
       const edgeVisible = visibilityRule === "midpoint"
-        ? isVisible(mesh, pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2), frame.viewDirection, rayLength)
+        ? isVisible(triangles, pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2), frame, rayLength)
         : [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].some((t) =>
-          isVisible(mesh, pointAt(start, end, t), frame.viewDirection, rayLength));
+          isVisible(triangles, pointAt(start, end, t), frame, rayLength));
       (edgeVisible ? visible : hidden).push(projected);
     }
   }
