@@ -365,6 +365,43 @@ const netHasOverlap = (net: PolyhedronNet): boolean => {
   return false;
 };
 
+const attachmentOrder = (preferred: number, count: number): readonly number[] =>
+  Array.from({ length: count }, (_, index) => index).sort((a, b) => {
+    const normalizedPreferred = ((preferred % count) + count) % count;
+    const distanceA = Math.min(
+      (a - normalizedPreferred + count) % count,
+      (normalizedPreferred - a + count) % count,
+    );
+    const distanceB = Math.min(
+      (b - normalizedPreferred + count) % count,
+      (normalizedPreferred - b + count) % count,
+    );
+    return distanceA - distanceB || a - b;
+  });
+
+/**
+ * Search attachment edges deterministically instead of assuming one pair is
+ * valid for every continuously generated profile. The first valid result stays
+ * close to the preferred layout while guaranteeing non-overlapping net faces.
+ */
+const buildSafeStripPrismNet = (
+  polyhedron: LogicalPolyhedron,
+  definition: PrismNetDefinition,
+  preferredFront: number,
+  preferredBack: number,
+): PolyhedronNet => {
+  const count = definition.sideFaceIds.length;
+  const fronts = attachmentOrder(preferredFront, count);
+  const backs = attachmentOrder(preferredBack, count);
+  for (const front of fronts) {
+    for (const back of backs) {
+      const net = buildStripPrismNet(polyhedron, definition, front, back);
+      if (!netHasOverlap(net)) return net;
+    }
+  }
+  throw new TypeError(`Could not construct a non-overlapping strip net for ${polyhedron.id}`);
+};
+
 export const createNetWithStyle = (
   polyhedron: LogicalPolyhedron,
   variant = 0,
@@ -381,15 +418,24 @@ export const createNetWithStyle = (
   if (normalizedVariant === 1) {
     const fan = buildFanPrismNet(polyhedron, definition, Math.floor(count / 2));
     if (!netHasOverlap(fan)) return { net: fan, style: "fan-hub" };
+    return {
+      net: buildSafeStripPrismNet(polyhedron, definition, 0, Math.max(1, Math.floor(count / 2))),
+      style: "strip-split-a",
+    };
   }
   if (normalizedVariant === 2) {
     return {
-      net: buildStripPrismNet(polyhedron, definition, Math.floor(count / 3), Math.floor(count * 2 / 3)),
+      net: buildSafeStripPrismNet(
+        polyhedron,
+        definition,
+        Math.floor(count / 3),
+        Math.floor(count * 2 / 3),
+      ),
       style: "strip-split-b",
     };
   }
   return {
-    net: buildStripPrismNet(polyhedron, definition, 0, Math.max(1, Math.floor(count / 2))),
+    net: buildSafeStripPrismNet(polyhedron, definition, 0, Math.max(1, Math.floor(count / 2))),
     style: "strip-split-a",
   };
 };
