@@ -48,7 +48,7 @@ describe("offline CLI", () => {
     const inspected = await execFileAsync(process.execPath, [cli, "inspect", input], { cwd: directory });
     const output = inspected.stdout.trim();
     expect(path.dirname(output)).toBe(directory);
-    expect(path.basename(output)).toBe('evil_onerror_alert_1_.html');
+    expect(path.basename(output)).toBe('_evil_onerror_alert_1_.html');
     const html = await readFile(output, "utf8");
     expect(html).toContain('&quot; onerror=&quot;alert(1)');
     expect(html).not.toContain('alt="../evil" onerror="alert(1)');
