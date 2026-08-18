@@ -108,8 +108,8 @@ class BrowserInteractiveRuntimeViewer implements InteractiveRuntimeViewer {
     this.#viewHeight = this.camera.top - this.camera.bottom;
     this.#distance = Math.max(1, this.camera.position.distanceTo(this.controls.target));
 
-    if (typeof ownerWindow.ResizeObserver === "function") {
-      this.#resizeObserver = new ownerWindow.ResizeObserver(() => this.resize());
+    if (typeof ResizeObserver === "function") {
+      this.#resizeObserver = new ResizeObserver(() => this.resize());
       this.#resizeObserver.observe(container);
     } else {
       ownerWindow.addEventListener("resize", this.resize);
