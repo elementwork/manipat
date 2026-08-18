@@ -40,14 +40,15 @@ describe("offline CLI", () => {
       questionCount: number;
       questions: Array<{ category: string; kind: string }>;
     };
-    expect(allSummary.questionCount).toBe(4);
+    expect(allSummary.questionCount).toBe(5);
     expect(allSummary.questions.map(({ category }) => category)).toEqual([
-      "aperture", "view-recognition", "cube-counting", "form-development",
+      "aperture", "view-recognition", "paper-folding", "cube-counting", "form-development",
     ]);
 
     const runtimeCategories = [
       ["aperture", "aperture", "mesh"],
       ["tfe", "view-recognition", "mesh"],
+      ["paper", "paper-folding", "paper-guide"],
       ["cubes", "cube-counting", "voxels"],
       ["form", "form-development", "mesh"],
     ] as const;
@@ -60,6 +61,15 @@ describe("offline CLI", () => {
         questions: [{ category, kind }],
       });
     }
+
+    const paperResult = await execFileAsync(process.execPath, [
+      viewerCli, first, "--category", "paper", "--dry-run",
+    ]);
+    const paperSummary = JSON.parse(paperResult.stdout) as {
+      questions: Array<{ stepCount: number; finalHoleCount: number }>;
+    };
+    expect(paperSummary.questions[0]?.stepCount).toBeGreaterThanOrEqual(2);
+    expect(paperSummary.questions[0]?.finalHoleCount).toBeGreaterThanOrEqual(1);
   }, 60_000);
 
   it("sanitizes imported question IDs used by inspect HTML and default filenames", async () => {

@@ -3,9 +3,13 @@ import {
   canonicalStringify,
   type JsonValue,
   type PatQuestionType,
+  type Vec2,
   type Vec3,
 } from "@manipat/core";
 import {
+  applyFold,
+  createInitialFoldState,
+  punchState,
   readPersistedQuestions,
   reconstructApertureMesh,
   reconstructTfeMesh,
@@ -17,16 +21,24 @@ import {
   type RuntimeViewPreset,
   type RuntimeVisualizationPayload,
 } from "@manipat/renderer-three";
+import type {
+  PaperGuidePayload,
+  PaperGuideStepPayload,
+  ViewerPayload,
+} from "./viewer-payload.js";
 import { startViewerServer } from "./viewer-server.js";
 
 const VISUALIZABLE_CATEGORIES = [
   "aperture",
   "view-recognition",
+  "paper-folding",
   "cube-counting",
   "form-development",
 ] as const satisfies readonly PatQuestionType[];
 
 type VisualizableCategory = typeof VISUALIZABLE_CATEGORIES[number];
+type PaperQuestion = Extract<AnyPatQuestion, { readonly type: "paper-folding" }>;
+type FoldState = ReturnType<typeof createInitialFoldState>;
 
 export interface VisualizeCommandOptions {
   readonly target: string;
@@ -46,6 +58,10 @@ const categoryFromText = (value: string): VisualizableCategory => {
     keyhole: "aperture",
     "view-recognition": "view-recognition",
     tfe: "view-recognition",
+    "paper-folding": "paper-folding",
+    paper: "paper-folding",
+    "hole-punching": "paper-folding",
+    "hole-punch": "paper-folding",
     "cube-counting": "cube-counting",
     cubes: "cube-counting",
     "form-development": "form-development",
@@ -53,7 +69,7 @@ const categoryFromText = (value: string): VisualizableCategory => {
   };
   const resolved = aliases[value];
   if (resolved === undefined) {
-    throw new RangeError(`Three.js visualization supports: ${VISUALIZABLE_CATEGORIES.join(", ")}`);
+    throw new RangeError(`Interactive visualization supports: ${VISUALIZABLE_CATEGORIES.join(", ")}`);
   }
   return resolved;
 };
@@ -62,10 +78,125 @@ const tfePreset = (view: "front" | "top" | "end"): RuntimeViewPreset =>
   view === "end" ? "right-end" : view;
 
 const cubeKey = ([x, y, z]: Vec3): string => `${x},${y},${z}`;
+const pointKey = ([x, y]: Vec2): string => `${x.toFixed(6)},${y.toFixed(6)}`;
+
+const sortPoints = (points: readonly Vec2[]): readonly Vec2[] =>
+  [...points].sort((first, second) => first[1] - second[1] || first[0] - second[0]);
+
+const uniquePoints = (points: readonly Vec2[]): readonly Vec2[] =>
+  sortPoints([...new Map(points.map((point) => [pointKey(point), point])).values()]);
+
+const pointDifference = (first: readonly Vec2[], second: readonly Vec2[]): readonly Vec2[] => {
+  const secondKeys = new Set(second.map(pointKey));
+  return first.filter((point) => !secondKeys.has(pointKey(point)));
+};
+
+const layerCenterMap = (state: FoldState): ReadonlyMap<string, Vec2> =>
+  new Map(state.layers.map(({ sourceLayerId, currentCenter }) => [sourceLayerId, currentCenter]));
+
+const holesForState = (
+  state: FoldState,
+  punchedSourceLayerIds: ReadonlySet<string>,
+): readonly Vec2[] => uniquePoints(state.layers.flatMap(({ sourceLayerId, currentCenter }) =>
+  punchedSourceLayerIds.has(sourceLayerId) ? [currentCenter] : []));
+
+const movedPunchedLayerCount = (
+  before: FoldState,
+  after: FoldState,
+  punchedSourceLayerIds: ReadonlySet<string>,
+): number => {
+  const beforeCenters = layerCenterMap(before);
+  const afterCenters = layerCenterMap(after);
+  let moved = 0;
+  for (const sourceLayerId of punchedSourceLayerIds) {
+    const first = beforeCenters.get(sourceLayerId);
+    const second = afterCenters.get(sourceLayerId);
+    if (first === undefined || second === undefined) continue;
+    if (pointKey(first) !== pointKey(second)) moved += 1;
+  }
+  return moved;
+};
+
+const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
+  const states: FoldState[] = [];
+  let state = createInitialFoldState();
+  states.push(state);
+  for (const fold of question.prompt.folds) {
+    state = applyFold(state, fold);
+    states.push(state);
+  }
+
+  const foldedState = states[question.prompt.folds.length];
+  if (foldedState === undefined) throw new Error("Paper fold state sequence is incomplete");
+  const punchedState = punchState(foldedState, question.prompt.punches);
+  const punchedSourceLayerIds = new Set<string>(
+    punchedState.punches.flatMap(({ sourceLayerIds }) => sourceLayerIds),
+  );
+  const foldedHoles = holesForState(foldedState, punchedSourceLayerIds);
+  const punchFrame = question.prompt.stepSvgs[question.prompt.folds.length]
+    ?? question.prompt.stepSvgs[question.prompt.stepSvgs.length - 1]
+    ?? null;
+
+  const steps: PaperGuideStepPayload[] = [{
+    kind: "punch",
+    title: "Punch through the folded stack",
+    completedFoldCount: question.prompt.folds.length,
+    baseSvg: punchFrame,
+    holes: foldedHoles,
+    newHoles: foldedHoles,
+    departedHoles: [],
+    affectedLayerCount: punchedSourceLayerIds.size,
+  }];
+
+  for (let foldIndex = question.prompt.folds.length - 1; foldIndex >= 0; foldIndex -= 1) {
+    const fold = question.prompt.folds[foldIndex];
+    const beforeState = states[foldIndex + 1];
+    const afterState = states[foldIndex];
+    if (fold === undefined || beforeState === undefined || afterState === undefined) {
+      throw new Error("Paper unfold state sequence is incomplete");
+    }
+    const beforeHoles = holesForState(beforeState, punchedSourceLayerIds);
+    const afterHoles = holesForState(afterState, punchedSourceLayerIds);
+    const completedFoldCount = foldIndex;
+    const baseSvg = completedFoldCount === 0
+      ? null
+      : question.prompt.stepSvgs[completedFoldCount - 1] ?? null;
+    steps.push({
+      kind: "unfold",
+      title: `Unfold ${fold.id}`,
+      completedFoldCount,
+      baseSvg,
+      holes: afterHoles,
+      newHoles: pointDifference(afterHoles, beforeHoles),
+      departedHoles: pointDifference(beforeHoles, afterHoles),
+      affectedLayerCount: movedPunchedLayerCount(beforeState, afterState, punchedSourceLayerIds),
+      foldLine: {
+        point: fold.line.point,
+        unitDirection: fold.line.unitDirection,
+      },
+    });
+  }
+
+  const correctChoice = question.choices[question.correctChoiceIndex];
+  if (correctChoice === undefined) throw new Error("Paper question correct choice is missing");
+  return {
+    kind: "paper-guide",
+    questionId: question.id,
+    category: question.type,
+    title: "Paper Punching — guided unfolding",
+    questionSvgs: question.prompt.stepSvgs,
+    correctSvg: correctChoice.svg,
+    punches: punchedState.punches.map(({ point, sourceLayerIds }) => ({
+      point,
+      layerCount: sourceLayerIds.length,
+    })),
+    steps,
+  };
+};
 
 export const buildVisualizationPayload = async (
   question: AnyPatQuestion,
-): Promise<RuntimeVisualizationPayload> => {
+): Promise<ViewerPayload> => {
   switch (question.type) {
     case "aperture": {
       const mesh = await reconstructApertureMesh(question);
@@ -92,6 +223,8 @@ export const buildVisualizationPayload = async (
         mesh: serializeCanonicalMesh(mesh),
       };
     }
+    case "paper-folding":
+      return buildPaperGuidePayload(question);
     case "cube-counting": {
       const positions: Vec3[] = question.prompt.figure.cubes.map(({ x, y, z }) => [x, y, z]);
       const matching = new Set(
@@ -125,16 +258,13 @@ export const buildVisualizationPayload = async (
       };
     }
     case "angle":
-    case "paper-folding":
-      throw new RangeError(
-        `${question.type} is a 2D PAT category; use its canonical SVG rather than Three.js`,
-      );
+      throw new RangeError("angle is a 2D PAT category; use its canonical SVG");
     default:
       return question satisfies never;
   }
 };
 
-const payloadSummary = (payload: RuntimeVisualizationPayload): JsonValue => payload.kind === "mesh"
+const runtimePayloadSummary = (payload: RuntimeVisualizationPayload): JsonValue => payload.kind === "mesh"
   ? {
       questionId: payload.questionId,
       category: payload.category,
@@ -153,6 +283,19 @@ const payloadSummary = (payload: RuntimeVisualizationPayload): JsonValue => payl
       targetView: payload.targetPreset ?? null,
     };
 
+const payloadSummary = (payload: ViewerPayload): JsonValue => {
+  if (payload.kind !== "paper-guide") return runtimePayloadSummary(payload);
+  const finalStep = payload.steps[payload.steps.length - 1];
+  return {
+    questionId: payload.questionId,
+    category: payload.category,
+    kind: payload.kind,
+    stepCount: payload.steps.length,
+    punchCount: payload.punches.length,
+    finalHoleCount: finalStep?.holes.length ?? 0,
+  };
+};
+
 const selectQuestions = (
   questions: readonly AnyPatQuestion[],
   questionId: string | undefined,
@@ -162,7 +305,7 @@ const selectQuestions = (
     const question = questions.find(({ id }) => id === questionId);
     if (question === undefined) throw new RangeError(`Question id not found: ${questionId}`);
     if (!isVisualizableCategory(question.type)) {
-      throw new RangeError(`${question.type} is not a Three.js 3D category`);
+      throw new RangeError(`${question.type} is not supported by the interactive viewer`);
     }
     return [question];
   }
@@ -174,8 +317,8 @@ const selectQuestions = (
   if (selected.length === 0) {
     throw new RangeError(
       requestedCategory === undefined
-        ? "Input contains no 3D question available for visualization"
-        : `Input contains no ${requestedCategory} question available for visualization`,
+        ? "Input contains no question available for interactive visualization"
+        : `Input contains no ${requestedCategory} question available for interactive visualization`,
     );
   }
   return selected;
@@ -183,8 +326,8 @@ const selectQuestions = (
 
 const buildPayloads = async (
   questions: readonly AnyPatQuestion[],
-): Promise<readonly RuntimeVisualizationPayload[]> => {
-  const payloads: RuntimeVisualizationPayload[] = [];
+): Promise<readonly ViewerPayload[]> => {
+  const payloads: ViewerPayload[] = [];
   // Reconstruct sequentially. Aperture/TFE use WASM-backed geometry kernels;
   // keeping this deterministic and low-memory is more useful for a local
   // inspector than maximizing startup parallelism.
