@@ -45,6 +45,7 @@ describe("TFE golden fixtures", () => {
     }
     cases.push(["blind-recess", blindRecess(kernel)]);
 
+    const actualByName: Record<string, Array<{ viewFingerprint: string; svgFingerprint: string }>> = {};
     for (const [name, source] of cases) {
       using ownedSource = source;
       const normalizedResult = normalizeSolid(kernel, ownedSource);
@@ -53,11 +54,11 @@ describe("TFE golden fixtures", () => {
       const views = [FRONT_FRAME, TOP_FRAME, RIGHT_END_FRAME].map((frame) =>
         createOrthographicView(mesh, frame));
       const viewBox = sharedTfeViewBox(views);
-      const actual = views.map((view, index) => ({
+      actualByName[name] = views.map((view, index) => ({
         viewFingerprint: view.fingerprint,
         svgFingerprint: fingerprint64(renderTfeView(view, viewBox, ["front", "top", "end"][index] ?? "view")),
       }));
-      expect(actual, name).toEqual(golden[name as keyof typeof golden]);
     }
+    expect(actualByName).toEqual(golden);
   });
 });
