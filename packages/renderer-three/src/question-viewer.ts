@@ -124,6 +124,7 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
   public setGhosted(ghosted: boolean): void {
     this.#assertActive();
     this.#preview.setGhosted(ghosted);
+    this.runtime.render();
   }
 
   public setSurfaceVisible(visible: boolean): void {
@@ -134,7 +135,7 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
 
   public setEdgesVisible(visible: boolean): void {
     this.#assertActive();
-    this.#preview.edges.visible = visible;
+    this.#preview.setEdgesVisible(visible);
     this.runtime.render();
   }
 
