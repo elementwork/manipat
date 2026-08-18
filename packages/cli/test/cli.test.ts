@@ -35,6 +35,16 @@ describe("offline CLI", () => {
     const validation = await execFileAsync(process.execPath, [cli, "validate", first]);
     expect(JSON.parse(validation.stdout)).toMatchObject({ passed: true, questionCount: 6 });
 
+    const allRuntime = await execFileAsync(process.execPath, [viewerCli, first, "--dry-run"]);
+    const allSummary = JSON.parse(allRuntime.stdout) as {
+      questionCount: number;
+      questions: Array<{ category: string; kind: string }>;
+    };
+    expect(allSummary.questionCount).toBe(4);
+    expect(allSummary.questions.map(({ category }) => category)).toEqual([
+      "aperture", "view-recognition", "cube-counting", "form-development",
+    ]);
+
     const runtimeCategories = [
       ["aperture", "aperture", "mesh"],
       ["tfe", "view-recognition", "mesh"],
@@ -45,7 +55,10 @@ describe("offline CLI", () => {
       const result = await execFileAsync(process.execPath, [
         viewerCli, first, "--category", requested, "--dry-run",
       ]);
-      expect(JSON.parse(result.stdout)).toMatchObject({ category, kind });
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        questionCount: 1,
+        questions: [{ category, kind }],
+      });
     }
   }, 60_000);
 
