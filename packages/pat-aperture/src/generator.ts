@@ -58,6 +58,7 @@ const RICH_APERTURE_TEMPLATES = [
   ...APERTURE_COMPLEX_TEMPLATES,
   ...APERTURE_FACETED_TEMPLATES,
 ] as const;
+const PICTORIAL_SUBDIVISIONS = 12;
 
 const templatePoolFor = (difficulty: 1 | 2 | 3 | 4 | 5): readonly (typeof APERTURE_TEMPLATES[number])[] => {
   switch (difficulty) {
@@ -191,7 +192,7 @@ export class ApertureGenerator {
     using pictorialSolid = this.#kernel.rotate(normalized, [0, 0, pictorialSpin]);
     const pictorialMesh = this.#kernel.getMesh(pictorialSolid);
     const pictorialView = createOrthographicView(pictorialMesh, ISOMETRIC_FRAME, {
-      subdivisions: 24,
+      subdivisions: PICTORIAL_SUBDIVISIONS,
       visibilityRule: "midpoint",
     });
     const pictorialSvg = renderAperturePictorial(pictorialView);
@@ -274,6 +275,7 @@ export class ApertureGenerator {
         principalProjectionCount: uniquePrincipal.length,
         pictorialSpin,
         pictorialCamera: "top-left-fixed-v3",
+        pictorialSubdivisions: PICTORIAL_SUBDIVISIONS,
         objectFamily: isAdvanced ? "advanced" : objectTemplate.id.startsWith("A1") ? "rich" : "legacy",
       },
     };
