@@ -26,6 +26,18 @@ describe("logical topology and TFE projection", () => {
     expect(view.bounds).toEqual({ min: [-5, -15], max: [5, 15] });
   });
 
+  it("suppresses 12-sided cylinder facet clutter while keeping the true silhouette", async () => {
+    const kernel = await createManifoldKernel();
+    using cylinder = kernel.cylinder(20, 5, 5, 12, true);
+    const view = createOrthographicView(kernel.getMesh(cylinder), FRONT_FRAME, {
+      subdivisions: 6,
+      visibilityRule: "midpoint",
+    });
+    expect(view.visible.length).toBeGreaterThanOrEqual(4);
+    expect(view.visible.length).toBeLessThanOrEqual(6);
+    expect(view.hidden).toHaveLength(0);
+  });
+
   it("merges large connected fragment chains without pairwise rescanning", () => {
     const fragments = Array.from({ length: 1_200 }, (_, index) => ({
       a: [index, 0] as const,
