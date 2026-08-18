@@ -1,10 +1,10 @@
-name: PR Verify
+name: Verify
 
 on:
+  pull_request:
   push:
     branches:
-      - agent/golden-fidelity-performance-v7
-  pull_request:
+      - main
   workflow_dispatch:
 
 jobs:
