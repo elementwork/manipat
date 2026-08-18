@@ -25,10 +25,13 @@ describe("Three.js renderer foundations", () => {
 
   it("creates canonical orthographic cameras", () => {
     const front = createFrontCamera({ distance: 100 });
-    expect(front.position.toArray()).toEqual([0, -100, 0]);
+    expect(front.position.toArray()).toEqual([0, 100, 0]);
 
     const isometric = createIsometricOrthographicCamera({ distance: 90 });
     expect(isometric.position.length()).toBeCloseTo(90);
+    expect(isometric.position.x).toBeLessThan(0);
+    expect(isometric.position.y).toBeLessThan(0);
+    expect(isometric.position.z).toBeGreaterThan(0);
     expect(isometric.isOrthographicCamera).toBe(true);
   });
 });
