@@ -27,49 +27,65 @@ const shifted = ({ a, b }: Segment2, amount: number): Segment2 => {
 };
 
 const shortened = ({ a, b }: Segment2): Segment2 => ({
-  a: [a[0] + (b[0] - a[0]) * 0.24, a[1] + (b[1] - a[1]) * 0.24],
-  b: [b[0] - (b[0] - a[0]) * 0.24, b[1] - (b[1] - a[1]) * 0.24],
+  a: [a[0] + (b[0] - a[0]) * 0.18, a[1] + (b[1] - a[1]) * 0.18],
+  b: [b[0] - (b[0] - a[0]) * 0.18, b[1] - (b[1] - a[1]) * 0.18],
 });
 
-const transformReferenceToTarget = (
-  reference: OrthographicView,
-  target: OrthographicView,
-): OrthographicView => {
-  const sourceWidth = Math.max(EPS.length, reference.bounds.max[0] - reference.bounds.min[0]);
-  const sourceHeight = Math.max(EPS.length, reference.bounds.max[1] - reference.bounds.min[1]);
-  const targetWidth = Math.max(EPS.length, target.bounds.max[0] - target.bounds.min[0]);
-  const targetHeight = Math.max(EPS.length, target.bounds.max[1] - target.bounds.min[1]);
-  const sourceCenter: Vec2 = [
-    (reference.bounds.min[0] + reference.bounds.max[0]) / 2,
-    (reference.bounds.min[1] + reference.bounds.max[1]) / 2,
-  ];
-  const targetCenter: Vec2 = [
-    (target.bounds.min[0] + target.bounds.max[0]) / 2,
-    (target.bounds.min[1] + target.bounds.max[1]) / 2,
-  ];
-  const mapPoint = ([x, y]: Vec2): Vec2 => [
-    targetCenter[0] + (x - sourceCenter[0]) * targetWidth / sourceWidth,
-    targetCenter[1] + (y - sourceCenter[1]) * targetHeight / sourceHeight,
-  ];
-  const mapSegment = ({ a, b }: Segment2): Segment2 => ({ a: mapPoint(a), b: mapPoint(b) });
-  return canonicalizeOrthographicView(
-    target.frame,
-    reference.visible.map(mapSegment),
-    reference.hidden.map(mapSegment),
+const insideBounds = (segment: Segment2, view: OrthographicView, margin = 0): boolean =>
+  [segment.a, segment.b].every(([x, y]) =>
+    x >= view.bounds.min[0] - margin && x <= view.bounds.max[0] + margin
+      && y >= view.bounds.min[1] - margin && y <= view.bounds.max[1] + margin);
+
+const envelopeTouchCount = (segment: Segment2, view: OrthographicView): number => {
+  const span = Math.max(
+    view.bounds.max[0] - view.bounds.min[0],
+    view.bounds.max[1] - view.bounds.min[1],
+    EPS.length,
   );
+  const tolerance = span * 0.025;
+  return [segment.a, segment.b].reduce((count, [x, y]) => count
+    + (Math.abs(x - view.bounds.min[0]) <= tolerance ? 1 : 0)
+    + (Math.abs(x - view.bounds.max[0]) <= tolerance ? 1 : 0)
+    + (Math.abs(y - view.bounds.min[1]) <= tolerance ? 1 : 0)
+    + (Math.abs(y - view.bounds.max[1]) <= tolerance ? 1 : 0), 0);
 };
 
-const centralVisibleIndex = (view: OrthographicView): number => {
+/** Prefer an internal feature line over a silhouette/bounding edge. */
+const featureVisibleIndex = (view: OrthographicView): number => {
+  const center: Vec2 = [
+    (view.bounds.min[0] + view.bounds.max[0]) / 2,
+    (view.bounds.min[1] + view.bounds.max[1]) / 2,
+  ];
+  const span = Math.max(
+    view.bounds.max[0] - view.bounds.min[0],
+    view.bounds.max[1] - view.bounds.min[1],
+    EPS.length,
+  );
+  let bestIndex = 0;
+  let bestScore = Number.POSITIVE_INFINITY;
+  view.visible.forEach((segment, index) => {
+    const [x, y] = midpoint(segment);
+    const centerDistance = Math.hypot(x - center[0], y - center[1]) / span;
+    const score = envelopeTouchCount(segment, view) * 4 + centerDistance + length(segment) / span * 0.08;
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+};
+
+const featureHiddenIndex = (view: OrthographicView): number => {
+  if (view.hidden.length === 0) return -1;
   const center: Vec2 = [
     (view.bounds.min[0] + view.bounds.max[0]) / 2,
     (view.bounds.min[1] + view.bounds.max[1]) / 2,
   ];
   let bestIndex = 0;
   let bestScore = Number.POSITIVE_INFINITY;
-  view.visible.forEach((segment, index) => {
+  view.hidden.forEach((segment, index) => {
     const [x, y] = midpoint(segment);
-    const centerDistance = Math.hypot(x - center[0], y - center[1]);
-    const score = centerDistance + length(segment) * 0.05;
+    const score = Math.hypot(x - center[0], y - center[1]);
     if (score < bestScore) {
       bestScore = score;
       bestIndex = index;
@@ -79,14 +95,14 @@ const centralVisibleIndex = (view: OrthographicView): number => {
 };
 
 /**
- * Build choices from competing structural interpretations first, then from
- * local line mistakes. Using another real orthographic projection as the basis
- * for a distractor produces a coherent wrong answer; arbitrary edits to one
- * long boundary line tend to create near-duplicate or visibly artificial SVGs.
+ * Build plausible alternative interpretations of the actual missing view.
+ * Never transplant/rescale TOP, FRONT, or END geometry into another view: that
+ * produces choices that violate orthographic correspondence and was the source
+ * of several visibly malformed answer diagrams.
  */
 export const generateTfeDistractors = (
   correct: OrthographicView,
-  referenceViews: readonly OrthographicView[] = [],
+  _referenceViews: readonly OrthographicView[] = [],
 ): readonly TfeDistractor[] => {
   const visible = [...correct.visible];
   const hidden = [...correct.hidden];
@@ -95,15 +111,17 @@ export const generateTfeDistractors = (
   const span = Math.max(
     correct.bounds.max[0] - correct.bounds.min[0],
     correct.bounds.max[1] - correct.bounds.min[1],
+    EPS.length,
   );
   const center: Vec2 = [
     (correct.bounds.min[0] + correct.bounds.max[0]) / 2,
     (correct.bounds.min[1] + correct.bounds.max[1]) / 2,
   ];
-  const featureIndex = centralVisibleIndex(correct);
+  const featureIndex = featureVisibleIndex(correct);
   const target = visible[featureIndex] ?? visible[0]!;
   const results: TfeDistractor[] = [];
   const fingerprints = new Set([correct.fingerprint]);
+
   const addView = (mutation: TfeDistractorMutation, view: OrthographicView): void => {
     if (fingerprints.has(view.fingerprint)) return;
     fingerprints.add(view.fingerprint);
@@ -118,40 +136,73 @@ export const generateTfeDistractors = (
     canonicalizeOrthographicView(correct.frame, candidateVisible, candidateHidden),
   );
 
-  for (const reference of referenceViews) {
-    addView("wrong-projection", transformReferenceToTarget(reference, correct));
-  }
-
+  // A complete left/right reversal is a coherent alternative solid, not a
+  // detached line edit, and is common in PAT distractor design.
   add(
     "mirror-view",
-    visible.map(({ a, b }) => ({ a: [2 * center[0] - a[0], a[1]], b: [2 * center[0] - b[0], b[1]] })),
-    hidden.map(({ a, b }) => ({ a: [2 * center[0] - a[0], a[1]], b: [2 * center[0] - b[0], b[1]] })),
+    visible.map(({ a, b }) => ({
+      a: [2 * center[0] - a[0], a[1]],
+      b: [2 * center[0] - b[0], b[1]],
+    })),
+    hidden.map(({ a, b }) => ({
+      a: [2 * center[0] - a[0], a[1]],
+      b: [2 * center[0] - b[0], b[1]],
+    })),
   );
 
-  add(
-    "visibility-flip",
-    visible.filter((_, index) => index !== featureIndex),
-    [...hidden, target],
-  );
-
-  add("move-line", visible.map((line, index) =>
-    index === featureIndex ? shifted(line, Math.max(2.5, span * 0.16)) : line), hidden);
-
-  add("shorten-line", visible.map((line, index) =>
-    index === featureIndex ? shortened(line) : line), hidden);
-
-  if (visible.length > 2) {
-    const deleteIndex = (featureIndex + 1) % visible.length;
-    add("delete-edge", visible.filter((_, index) => index !== deleteIndex), hidden);
+  // Toggle one internal/recess cue between solid and hidden. Prefer an actual
+  // hidden line when available so the outer envelope remains untouched.
+  const hiddenIndex = featureHiddenIndex(correct);
+  if (hiddenIndex >= 0) {
+    const hiddenTarget = hidden[hiddenIndex]!;
+    add(
+      "visibility-flip",
+      [...visible, hiddenTarget],
+      hidden.filter((_, index) => index !== hiddenIndex),
+    );
+  } else {
+    add(
+      "visibility-flip",
+      visible.filter((_, index) => index !== featureIndex),
+      [...hidden, target],
+    );
   }
 
-  const edgeLen = Math.max(3, span * 0.28);
-  const newEdge: Segment2 = {
-    a: [center[0] - edgeLen / 2, center[1] + span * 0.12],
-    b: [center[0] + edgeLen / 2, center[1] + span * 0.12],
-  };
-  add("add-edge", [...visible, newEdge], hidden);
+  // Move a selected internal feature parallel to itself, but only if the whole
+  // segment remains inside the true missing-view envelope.
+  const shiftMagnitude = Math.max(EPS.length * 20, span * 0.11);
+  const positive = shifted(target, shiftMagnitude);
+  const negative = shifted(target, -shiftMagnitude);
+  const moved = insideBounds(positive, correct) ? positive : insideBounds(negative, correct) ? negative : undefined;
+  if (moved !== undefined) {
+    add(
+      "move-line",
+      visible.map((line, index) => index === featureIndex ? moved : line),
+      hidden,
+    );
+  }
 
-  if (results.length < 3) throw new Error("Could not generate three unique TFE distractors");
+  // A shorter internal level/ledge is another coherent dimensional mistake.
+  add(
+    "shorten-line",
+    visible.map((line, index) => index === featureIndex ? shortened(line) : line),
+    hidden,
+  );
+
+  if (visible.length > 3 && envelopeTouchCount(target, correct) === 0) {
+    add("delete-edge", visible.filter((_, index) => index !== featureIndex), hidden);
+  }
+
+  // Add a parallel internal feature rather than an arbitrary free-floating
+  // horizontal line. This keeps the answer visually consistent with the same
+  // orthographic envelope and feature orientation.
+  const addPositive = shifted(target, Math.max(EPS.length * 20, span * 0.16));
+  const addNegative = shifted(target, -Math.max(EPS.length * 20, span * 0.16));
+  const newEdge = insideBounds(addPositive, correct)
+    ? addPositive
+    : insideBounds(addNegative, correct) ? addNegative : undefined;
+  if (newEdge !== undefined) add("add-edge", [...visible, newEdge], hidden);
+
+  if (results.length < 3) throw new Error("Could not generate three unique coherent TFE distractors");
   return results.slice(0, 3);
 };
