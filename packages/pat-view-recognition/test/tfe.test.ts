@@ -15,7 +15,7 @@ describe("TfeGenerator", () => {
     );
   });
 
-  it("generates 1,000 uniquely solvable questions with golden-complex hard models", async () => {
+  it("generates 1,000 uniquely solvable questions with coherent golden-style choices", async () => {
     const generator = await createTfeGenerator();
     const templates = new Set<string>();
     const missingViews = new Set<string>();
@@ -27,7 +27,11 @@ describe("TfeGenerator", () => {
       expect(validation.passed, `seed tfe-${index}`).toBe(true);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
       expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(4);
-      expect(new Set(question.choices.flatMap(({ mutation }) => mutation === undefined ? [] : [mutation])).size).toBeGreaterThanOrEqual(2);
+      const mutations = question.choices.flatMap(({ mutation }) => mutation === undefined ? [] : [mutation]);
+      expect(new Set(mutations).size).toBeGreaterThanOrEqual(2);
+      expect(mutations).not.toContain("wrong-projection");
+      expect(question.metadata.distractorModel).toBe("missing-view-semantic-v3");
+      expect(Number(question.metadata.projectionSubdivisions ?? 0)).toBe(6);
       expect(question.templateId.startsWith("TFE")).toBe(true);
       expect(Number(question.metadata.totalProjectionInformation ?? 0)).toBeGreaterThanOrEqual(
         Number(question.metadata.targetInformation ?? 0),
