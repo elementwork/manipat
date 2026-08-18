@@ -79,23 +79,26 @@ const rotateForView = ([x, y, z]: Vec3, quarterTurns: 0 | 1 | 2 | 3): Vec3 => {
   }
 };
 
-/**
- * Orthographic isometric projection. Its null/view axis is [1,1,1], so camera
- * depth must be measured with x+y+z. The previous x+y-z sort was inconsistent
- * with this projection and could paint rear faces over front faces.
- */
+/** The projection's null/view axis is [1,1,1], so depth is x+y+z. */
 const project = ([x, y, z]: Vec3): Vec2 => [
   (x - y) * Math.sqrt(3) / 2,
   (x + y) * 0.5 - z,
 ];
 
 const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const negate = ([x, y, z]: Vec3): Vec3 => [-x, -y, -z];
 const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
 ];
 const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+const center3 = (vertices: readonly Vec3[]): Vec3 => [
+  vertices.reduce((sum, [x]) => sum + x, 0) / vertices.length,
+  vertices.reduce((sum, [, y]) => sum + y, 0) / vertices.length,
+  vertices.reduce((sum, [, , z]) => sum + z, 0) / vertices.length,
+];
 
 const faceNormal = (vertices: readonly Vec3[]): Vec3 | undefined => {
   const a = vertices[0];
@@ -105,13 +108,23 @@ const faceNormal = (vertices: readonly Vec3[]): Vec3 | undefined => {
   return cross(subtract(b, a), subtract(c, a));
 };
 
+const outwardFaceNormal = (
+  vertices: readonly Vec3[],
+  solidCenter: Vec3,
+): Vec3 | undefined => {
+  const normal = faceNormal(vertices);
+  if (normal === undefined) return undefined;
+  const faceCenter = center3(vertices);
+  return dot(normal, subtract(faceCenter, solidCenter)) >= 0 ? normal : negate(normal);
+};
+
 // Camera sits in the +X,+Y,+Z octant looking toward the origin.
 const CAMERA_VECTOR: Vec3 = [1, 1, 1];
 
 /**
- * Render only camera-facing closed faces, then paint them from far to near.
- * Rear faces are intentionally omitted; drawing their stroked polygons was the
- * reason some candidates looked like open wireframes instead of opaque solids.
+ * Render only camera-facing opaque faces, then paint them from far to near.
+ * Face orientation is derived from the solid centroid rather than vertex winding
+ * because legacy and generated prism families do not all use the same winding.
  */
 export const renderFoldedChoice = (
   polyhedron: LogicalPolyhedron,
@@ -124,13 +137,13 @@ export const renderFoldedChoice = (
   const quarterTurns = choice.viewQuarterTurns ?? 0;
   const transformed = sourceVertices.map((vertex) =>
     rotateForView(transformPoint(vertex, choice.chirality), quarterTurns));
-  const windingSign = choice.chirality === "mirrored" ? -1 : 1;
+  const solidCenter = center3(transformed);
 
   const visibleFaces = polyhedron.faces.flatMap((face) => {
     const vertices = face.vertexIds.map((id): Vec3 => transformed[id] ?? [0, 0, 0]);
     if (vertices.length < 3) return [];
-    const normal = faceNormal(vertices);
-    if (normal === undefined || dot(normal, CAMERA_VECTOR) * windingSign <= 1e-9) return [];
+    const normal = outwardFaceNormal(vertices, solidCenter);
+    if (normal === undefined || dot(normal, CAMERA_VECTOR) <= 1e-9) return [];
     const polygon = vertices.map(project);
     const depth = vertices.reduce((sum, [x, y, z]) => sum + x + y + z, 0) / vertices.length;
     return [{ face, polygon, depth }];
