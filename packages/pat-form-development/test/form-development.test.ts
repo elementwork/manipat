@@ -14,16 +14,19 @@ describe("form development", () => {
     for (const polyhedron of POLYHEDRA) {
       const adjacency = buildFaceAdjacency(polyhedron);
       expect(adjacency.length).toBeGreaterThanOrEqual(polyhedron.faces.length);
-      expect(verifyNet(polyhedron, createNet(polyhedron)), polyhedron.id).toEqual({ valid: true, errors: [] });
+      for (const variant of [0, 1, 2]) {
+        expect(verifyNet(polyhedron, createNet(polyhedron, variant)), `${polyhedron.id}:${variant}`).toEqual({ valid: true, errors: [] });
+      }
       using preview = createFormDevelopmentPreview(polyhedron);
       expect(preview.surface.geometry.getAttribute("position").count).toBe(polyhedron.vertices.length);
       expect(preview.disposed).toBe(false);
     }
   });
 
-  it("generates 2,000 uniquely foldable questions with complex hard polyhedra", () => {
+  it("generates 2,000 uniquely foldable questions with varied golden-style nets", () => {
     const polyhedra = new Set<string>();
     const geometries = new Set<string>();
+    const netLayouts = new Set<string>();
     for (let index = 0; index < 2_000; index += 1) {
       const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;
       const question = generateFormDevelopmentQuestion(`form-${index}`, band);
@@ -38,6 +41,7 @@ describe("form development", () => {
         (svg.match(/<polygon\b/gu)?.length ?? 0) >= question.prompt.polyhedron.faces.length)).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
       expect(question.metadata.geometryVariation).toBe("continuous-parameters");
+      expect(["strip-split-a", "strip-split-b", "fan-hub"]).toContain(question.metadata.netLayoutStyle);
       if (band >= 4) {
         expect(question.metadata.modelTier, `seed form-${index}`).toBe("golden-complex-v3");
         expect(question.prompt.polyhedron.faces.length, `seed form-${index}`).toBeGreaterThanOrEqual(8);
@@ -45,6 +49,7 @@ describe("form development", () => {
       }
       polyhedra.add(question.prompt.polyhedron.id);
       geometries.add(question.fingerprints.net);
+      netLayouts.add(String(question.metadata.netLayoutStyle));
     }
     expect(polyhedra).toEqual(new Set([
       "trapezoidal-prism",
@@ -53,6 +58,7 @@ describe("form development", () => {
       "profile-chamfered-octagon",
       "profile-clipped-roof",
     ]));
+    expect(netLayouts).toEqual(new Set(["strip-split-a", "strip-split-b", "fan-hub"]));
     expect(geometries.size).toBeGreaterThan(1_900);
   }, 120_000);
 });
