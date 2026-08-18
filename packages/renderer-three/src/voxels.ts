@@ -13,6 +13,7 @@ export interface VoxelInstancedRender extends Disposable {
   readonly disposed: boolean;
   setHighlighted(indices: readonly number[], color?: ColorRepresentation): void;
   clearHighlight(): void;
+  dispose(): void;
 }
 
 class OwnedVoxelRender implements VoxelInstancedRender {
