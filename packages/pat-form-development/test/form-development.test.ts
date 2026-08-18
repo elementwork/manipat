@@ -37,8 +37,10 @@ describe("form development", () => {
       expect(new Set(question.choices.map(({ viewQuarterTurns }) => viewQuarterTurns)).size).toBe(4);
       expect(question.choices.every(({ vertices }) =>
         vertices !== undefined && vertices.length === question.prompt.polyhedron.vertices.length)).toBe(true);
-      expect(question.choices.every(({ svg }) =>
-        (svg.match(/<polygon\b/gu)?.length ?? 0) >= question.prompt.polyhedron.faces.length)).toBe(true);
+      expect(question.choices.every(({ svg }) => {
+        const visibleFaceCount = svg.match(/<polygon\b/gu)?.length ?? 0;
+        return visibleFaceCount >= 3 && visibleFaceCount < question.prompt.polyhedron.faces.length;
+      })).toBe(true);
       expect(question.explanation.markedFaces).toEqual([]);
       expect(question.metadata.geometryVariation).toBe("continuous-parameters");
       expect(["strip-split-a", "strip-split-b", "fan-hub"]).toContain(question.metadata.netLayoutStyle);
