@@ -1,10 +1,10 @@
 import {
   Color,
-  OrthographicCamera,
-  Scene,
   Vector3,
   WebGLRenderer,
   type ColorRepresentation,
+  type OrthographicCamera,
+  type Scene,
 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { RuntimeViewPreset } from "./runtime-payload.js";
