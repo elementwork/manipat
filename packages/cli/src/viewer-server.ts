@@ -113,7 +113,7 @@ const mountPosition = (requestedPosition) => {
       viewControls.append(button);
     }
     title.textContent = payload.title;
-    meta.textContent = `Exam item ${globalIndex + 1} · ${categoryLabels[payload.category] ?? payload.category} · ${payload.questionId}`;
+    meta.textContent = "Exam item " + String(globalIndex + 1) + " · " + (categoryLabels[payload.category] ?? payload.category) + " · " + payload.questionId;
     target.classList.toggle("hidden", !viewer.capabilities.targetView);
     ghostWrap.classList.toggle("hidden", !viewer.capabilities.ghost);
     edgesWrap.classList.toggle("hidden", !viewer.capabilities.edges);
@@ -127,7 +127,7 @@ const mountPosition = (requestedPosition) => {
     status.style.color = "#a22";
   }
   questionSelect.value = String(activePosition);
-  position.textContent = `${activePosition + 1} / ${filteredIndices.length}`;
+  position.textContent = String(activePosition + 1) + " / " + String(filteredIndices.length);
   previous.disabled = activePosition === 0;
   next.disabled = activePosition === filteredIndices.length - 1;
 };
@@ -141,7 +141,7 @@ const rebuildQuestionList = (preferredGlobalIndex) => {
     const payload = payloads[globalIndex];
     const option = document.createElement("option");
     option.value = String(localIndex);
-    option.textContent = `#${globalIndex + 1} · ${categoryLabels[payload.category] ?? payload.category} · ${payload.questionId}`;
+    option.textContent = "#" + String(globalIndex + 1) + " · " + (categoryLabels[payload.category] ?? payload.category) + " · " + payload.questionId;
     questionSelect.append(option);
   });
   const preferredPosition = filteredIndices.indexOf(preferredGlobalIndex);
