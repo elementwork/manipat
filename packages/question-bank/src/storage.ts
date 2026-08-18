@@ -71,6 +71,9 @@ export const persistBatch = async (
     path.join(options.outputDirectory, "generation-stats.json"),
     result.stats as unknown as JsonValue,
   );
+  // Keep the manifest reproducible. Run-time timestamps belong in external job
+  // logs, not in the canonical generated artifact described by the seed/version
+  // contract.
   await writeCanonicalJson(path.join(options.outputDirectory, "manifest.json"), {
     acceptedCategoryCounts: result.stats.acceptedByCategory,
     cliVersion: options.cliVersion,
@@ -81,7 +84,6 @@ export const persistBatch = async (
     difficulty: options.difficulty,
     difficultyDistribution: result.stats.acceptedByDifficulty,
     engineVersion: options.engineVersion,
-    generationTimestamp: new Date().toISOString(),
     profile: options.profile,
     requestedCategoryCounts: options.requestedCategoryCounts ?? result.stats.acceptedByCategory,
     seed: options.seed,
