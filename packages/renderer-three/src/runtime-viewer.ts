@@ -36,8 +36,8 @@ export interface InteractiveRuntimeViewer extends Disposable {
 
 const directionForPreset = (preset: RuntimeViewPreset): Vector3 => {
   switch (preset) {
-    case "isometric": return new Vector3(1, -1, 1).normalize();
-    case "front": return new Vector3(0, -1, 0);
+    case "isometric": return new Vector3(-1, -1, 1).normalize();
+    case "front": return new Vector3(0, 1, 0);
     case "top": return new Vector3(0, 0, 1);
     case "right-end": return new Vector3(1, 0, 0);
     default: return preset satisfies never;
