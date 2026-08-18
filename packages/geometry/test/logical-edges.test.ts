@@ -4,6 +4,7 @@ import {
   createManifoldKernel,
   createOrthographicView,
   extractLogicalTopology,
+  mergeCollinearSegments,
 } from "../src/index.js";
 
 describe("logical topology and TFE projection", () => {
@@ -23,5 +24,15 @@ describe("logical topology and TFE projection", () => {
     expect(view.visible).toHaveLength(4);
     expect(view.hidden).toHaveLength(0);
     expect(view.bounds).toEqual({ min: [-5, -15], max: [5, 15] });
+  });
+
+  it("merges large connected fragment chains without pairwise rescanning", () => {
+    const fragments = Array.from({ length: 1_200 }, (_, index) => ({
+      a: [index, 0] as const,
+      b: [index + 1, 0] as const,
+    }));
+    expect(mergeCollinearSegments(fragments)).toEqual([
+      { a: [0, 0], b: [1_200, 0] },
+    ]);
   });
 });
