@@ -244,8 +244,9 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.runtime.setAutoRotate(enabled);
   }
 
-  public setGhosted(_ghosted: boolean): void {
+  public setGhosted(ghosted: boolean): void {
     this.#assertActive();
+    void ghosted;
   }
 
   public setSurfaceVisible(visible: boolean): void {
@@ -254,8 +255,9 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.runtime.render();
   }
 
-  public setEdgesVisible(_visible: boolean): void {
+  public setEdgesVisible(visible: boolean): void {
     this.#assertActive();
+    void visible;
   }
 
   public setExplanationVisible(visible: boolean): void {
