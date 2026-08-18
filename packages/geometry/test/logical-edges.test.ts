@@ -35,4 +35,17 @@ describe("logical topology and TFE projection", () => {
       { a: [0, 0], b: [1_200, 0] },
     ]);
   });
+
+  it("keeps disjoint collinear runs and perpendicular junctions separate", () => {
+    expect(mergeCollinearSegments([
+      { a: [0, 0], b: [1, 0] },
+      { a: [1, 0], b: [2, 0] },
+      { a: [1, 0], b: [1, 1] },
+      { a: [3, 0], b: [4, 0] },
+    ])).toEqual([
+      { a: [0, 0], b: [2, 0] },
+      { a: [1, 0], b: [1, 1] },
+      { a: [3, 0], b: [4, 0] },
+    ]);
+  });
 });
