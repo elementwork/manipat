@@ -4,7 +4,7 @@ import {
   normalizeSolid,
 } from "@manipat/geometry";
 import { APERTURE_TEMPLATES } from "../../object-generator/src/index.js";
-import { Box3, Vector3 } from "three";
+import { Box3, LineDashedMaterial, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { createPictorialPreview } from "../src/index.js";
 
@@ -41,7 +41,7 @@ describe("pictorial previews", () => {
     }
   });
 
-  it("supports rotation, highlighting, ghosting, and projection overlays", async () => {
+  it("supports rotation, highlighting, ghost hidden lines, and projection overlays", async () => {
     const kernel = await createManifoldKernel();
     using cube = kernel.cube([100, 80, 60], true);
     const mesh = { ...kernel.getMesh(cube), groups: [{ featureId: "body", start: 0, count: 6 }] };
@@ -50,8 +50,18 @@ describe("pictorial previews", () => {
     expect(preview.object.rotation.x).toBeCloseTo(Math.PI / 18);
     preview.highlightFeature("body");
     expect(preview.object.getObjectByName("selection-highlight")).toBeDefined();
+
+    expect(preview.hiddenEdges.visible).toBe(false);
     preview.setGhosted(true);
-    expect(preview.surface.material).toMatchObject({ transparent: true, opacity: 0.28 });
+    expect(preview.surface.material).toMatchObject({ transparent: true, opacity: 0.18 });
+    expect(preview.hiddenEdges.visible).toBe(true);
+    expect(preview.hiddenEdges.material).toBeInstanceOf(LineDashedMaterial);
+    preview.setEdgesVisible(false);
+    expect(preview.edges.visible).toBe(false);
+    expect(preview.hiddenEdges.visible).toBe(false);
+    preview.setEdgesVisible(true);
+    expect(preview.hiddenEdges.visible).toBe(true);
+
     preview.addProjectionPlane();
     expect(preview.object.getObjectByName("projection-plane")).toBeDefined();
   });
