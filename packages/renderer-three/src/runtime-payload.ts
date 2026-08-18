@@ -30,6 +30,8 @@ interface RuntimeVisualizationBase {
   readonly category: RuntimeVisualizationCategory;
   readonly title: string;
   readonly cameraPresets: readonly RuntimeViewPreset[];
+  /** Optional scored/important camera direction shown by a dedicated Target control. */
+  readonly targetPreset?: RuntimeViewPreset;
 }
 
 export interface RuntimeMeshVisualization extends RuntimeVisualizationBase {
