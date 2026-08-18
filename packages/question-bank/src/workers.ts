@@ -42,12 +42,38 @@ const mergeResults = (results: readonly BatchResult[]): BatchResult => {
   };
 };
 
+/**
+ * Resolve only after a worker has both posted a result and exited successfully.
+ * A clean exit without a message is an orchestration failure; treating it as a
+ * pending promise would otherwise make CLI generation hang indefinitely.
+ */
 const runWorker = (config: BatchConfig): Promise<BatchResult> => new Promise((resolve, reject) => {
   const worker = new Worker(new URL("./batch-worker.js", import.meta.url), { workerData: config });
-  worker.once("message", (result: BatchResult) => resolve(result));
-  worker.once("error", reject);
+  let result: BatchResult | undefined;
+  let settled = false;
+
+  const rejectOnce = (error: Error): void => {
+    if (settled) return;
+    settled = true;
+    reject(error);
+  };
+
+  worker.once("message", (message: BatchResult) => {
+    result = message;
+  });
+  worker.once("error", (error) => rejectOnce(error));
   worker.once("exit", (code) => {
-    if (code !== 0) reject(new Error(`Batch worker exited with code ${code}`));
+    if (settled) return;
+    if (code !== 0) {
+      rejectOnce(new Error(`Batch worker exited with code ${code}`));
+      return;
+    }
+    if (result === undefined) {
+      rejectOnce(new Error("Batch worker exited successfully without returning a result"));
+      return;
+    }
+    settled = true;
+    resolve(result);
   });
 });
 
