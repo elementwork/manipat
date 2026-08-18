@@ -65,12 +65,21 @@ const distance3 = (a: Vec3, b: Vec3): number => Math.hypot(
   b[2] - a[2],
 );
 
+const distance2 = (a: Vec2, b: Vec2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
 interface PrismNetDefinition {
   readonly profileVertexIds: readonly number[];
   readonly backProfileVertexIds: readonly number[];
   readonly sideFaceIds: readonly string[];
   readonly frontFaceId: string;
   readonly backFaceId: string;
+}
+
+export type NetLayoutStyle = "legacy" | "strip-split-a" | "strip-split-b" | "fan-hub";
+
+export interface NetWithStyle {
+  readonly net: PolyhedronNet;
+  readonly style: NetLayoutStyle;
 }
 
 const prismDefinition = (polyhedron: LogicalPolyhedron): PrismNetDefinition | undefined => {
@@ -106,23 +115,101 @@ const prismDefinition = (polyhedron: LogicalPolyhedron): PrismNetDefinition | un
   }
 };
 
-const buildPrismNet = (
+const profile2d = (vertices: readonly Vec3[]): readonly Vec2[] => {
+  const first = vertices[0];
+  if (first === undefined) return [];
+  return vertices.map(([x, , z]): Vec2 => [x - first[0], -(z - first[2])]);
+};
+
+const polygonCenter = (polygon: readonly Vec2[]): Vec2 => [
+  polygon.reduce((sum, [x]) => sum + x, 0) / polygon.length,
+  polygon.reduce((sum, [, y]) => sum + y, 0) / polygon.length,
+];
+
+const signedArea = (polygon: readonly Vec2[]): number => polygon.reduce((sum, [x1, y1], index) => {
+  const [x2, y2] = polygon[(index + 1) % polygon.length] ?? [x1, y1];
+  return sum + x1 * y2 - x2 * y1;
+}, 0) / 2;
+
+const reflectAcrossLine = (point: Vec2, a: Vec2, b: Vec2): Vec2 => {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const denominator = dx * dx + dy * dy;
+  if (denominator <= 1e-12) return point;
+  const t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / denominator;
+  const projection: Vec2 = [a[0] + t * dx, a[1] + t * dy];
+  return [2 * projection[0] - point[0], 2 * projection[1] - point[1]];
+};
+
+const placeProfileOnHorizontalEdge = (
+  profile: readonly Vec2[],
+  edgeIndex: number,
+  targetA: Vec2,
+  targetB: Vec2,
+  desiredSide: "above" | "below",
+): readonly Vec2[] => {
+  const sourceA = profile[edgeIndex];
+  const sourceB = profile[(edgeIndex + 1) % profile.length];
+  if (sourceA === undefined || sourceB === undefined) return profile;
+  const sourceDx = sourceB[0] - sourceA[0];
+  const sourceDy = sourceB[1] - sourceA[1];
+  const targetDx = targetB[0] - targetA[0];
+  const targetDy = targetB[1] - targetA[1];
+  const sourceLength = Math.max(1e-12, Math.hypot(sourceDx, sourceDy));
+  const targetLength = Math.hypot(targetDx, targetDy);
+  const cosine = (sourceDx * targetDx + sourceDy * targetDy) / (sourceLength * Math.max(1e-12, targetLength));
+  const sine = (sourceDx * targetDy - sourceDy * targetDx) / (sourceLength * Math.max(1e-12, targetLength));
+  const scale = targetLength / sourceLength;
+  let transformed = profile.map(([x, y]): Vec2 => {
+    const rx = x - sourceA[0];
+    const ry = y - sourceA[1];
+    return [
+      targetA[0] + (rx * cosine - ry * sine) * scale,
+      targetA[1] + (rx * sine + ry * cosine) * scale,
+    ];
+  });
+  const center = polygonCenter(transformed);
+  const shouldReflect = desiredSide === "above"
+    ? center[1] < targetA[1]
+    : center[1] > targetA[1];
+  if (shouldReflect) transformed = transformed.map(([x, y]): Vec2 => [x, 2 * targetA[1] - y]);
+  return transformed;
+};
+
+const prismGeometry = (
   polyhedron: LogicalPolyhedron,
   definition: PrismNetDefinition,
-): PolyhedronNet => {
-  const profile = definition.profileVertexIds.map((id) => polyhedron.vertices[id]);
-  const backProfile = definition.backProfileVertexIds.map((id) => polyhedron.vertices[id]);
-  if (profile.some((vertex) => vertex === undefined) || backProfile.some((vertex) => vertex === undefined)) {
+): {
+  readonly profile: readonly Vec2[];
+  readonly depth: number;
+  readonly edgeLengths: readonly number[];
+} => {
+  const front = definition.profileVertexIds.map((id) => polyhedron.vertices[id]);
+  const back = definition.backProfileVertexIds.map((id) => polyhedron.vertices[id]);
+  if (front.some((vertex) => vertex === undefined) || back.some((vertex) => vertex === undefined)) {
     throw new TypeError(`Polyhedron ${polyhedron.id} has incomplete prism profile vertices`);
   }
-  const typedProfile = profile as readonly Vec3[];
-  const typedBackProfile = backProfile as readonly Vec3[];
-  const depth = distance3(typedProfile[0]!, typedBackProfile[0]!);
-  const edgeLengths = typedProfile.map((vertex, index) =>
-    distance3(vertex, typedProfile[(index + 1) % typedProfile.length]!));
+  const typedFront = front as readonly Vec3[];
+  const typedBack = back as readonly Vec3[];
+  return {
+    profile: profile2d(typedFront),
+    depth: distance3(typedFront[0]!, typedBack[0]!),
+    edgeLengths: typedFront.map((vertex, index) =>
+      distance3(vertex, typedFront[(index + 1) % typedFront.length]!)),
+  };
+};
 
+const buildStripPrismNet = (
+  polyhedron: LogicalPolyhedron,
+  definition: PrismNetDefinition,
+  frontIndex: number,
+  backIndex: number,
+): PolyhedronNet => {
+  const { profile, depth, edgeLengths } = prismGeometry(polyhedron, definition);
+  const cursors: number[] = [];
   let cursor = 0;
   const sideFaces: NetFace[] = definition.sideFaceIds.map((faceId, index) => {
+    cursors.push(cursor);
     const width = edgeLengths[index] ?? 0;
     const polygon: readonly Vec2[] = [
       [cursor, 0], [cursor + width, 0], [cursor + width, depth], [cursor, depth],
@@ -131,15 +218,26 @@ const buildPrismNet = (
     return { faceId, polygon };
   });
 
-  const first = typedProfile[0]!;
-  const frontPolygon: readonly Vec2[] = typedProfile.map(([x, , z]): Vec2 => [
-    x - first[0],
-    -(z - first[2]),
-  ]);
-  const backPolygon: readonly Vec2[] = typedBackProfile.map(([x, , z]): Vec2 => [
-    x - typedBackProfile[0]![0],
-    depth + (z - typedBackProfile[0]![2]),
-  ]);
+  const safeFront = ((frontIndex % sideFaces.length) + sideFaces.length) % sideFaces.length;
+  const safeBack = ((backIndex % sideFaces.length) + sideFaces.length) % sideFaces.length;
+  const frontX = cursors[safeFront] ?? 0;
+  const backX = cursors[safeBack] ?? 0;
+  const frontWidth = edgeLengths[safeFront] ?? 0;
+  const backWidth = edgeLengths[safeBack] ?? 0;
+  const frontPolygon = placeProfileOnHorizontalEdge(
+    profile,
+    safeFront,
+    [frontX, 0],
+    [frontX + frontWidth, 0],
+    "below",
+  );
+  const backPolygon = placeProfileOnHorizontalEdge(
+    profile,
+    safeBack,
+    [backX, depth],
+    [backX + backWidth, depth],
+    "above",
+  );
 
   const connections: NetConnection[] = [];
   for (let index = 0; index < definition.sideFaceIds.length - 1; index += 1) {
@@ -149,8 +247,8 @@ const buildPrismNet = (
     });
   }
   connections.push(
-    { faceA: definition.sideFaceIds[0]!, faceB: definition.frontFaceId },
-    { faceA: definition.sideFaceIds[0]!, faceB: definition.backFaceId },
+    { faceA: definition.sideFaceIds[safeFront]!, faceB: definition.frontFaceId },
+    { faceA: definition.sideFaceIds[safeBack]!, faceB: definition.backFaceId },
   );
 
   return {
@@ -161,6 +259,66 @@ const buildPrismNet = (
       { faceId: definition.backFaceId, polygon: backPolygon },
     ],
     connections,
+  };
+};
+
+const buildFanPrismNet = (
+  polyhedron: LogicalPolyhedron,
+  definition: PrismNetDefinition,
+  backIndex: number,
+): PolyhedronNet => {
+  const { profile, depth, edgeLengths } = prismGeometry(polyhedron, definition);
+  const area = signedArea(profile);
+  const sideFaces: NetFace[] = definition.sideFaceIds.map((faceId, index) => {
+    const a = profile[index]!;
+    const b = profile[(index + 1) % profile.length]!;
+    const edgeLength = Math.max(1e-12, edgeLengths[index] ?? distance2(a, b));
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const outward: Vec2 = area >= 0
+      ? [dy / edgeLength, -dx / edgeLength]
+      : [-dy / edgeLength, dx / edgeLength];
+    const offset: Vec2 = [outward[0] * depth, outward[1] * depth];
+    return {
+      faceId,
+      polygon: [
+        a,
+        b,
+        [b[0] + offset[0], b[1] + offset[1]],
+        [a[0] + offset[0], a[1] + offset[1]],
+      ],
+    };
+  });
+
+  const safeBack = ((backIndex % sideFaces.length) + sideFaces.length) % sideFaces.length;
+  const sourceA = profile[safeBack]!;
+  const sourceB = profile[(safeBack + 1) % profile.length]!;
+  const edgeLength = Math.max(1e-12, edgeLengths[safeBack] ?? distance2(sourceA, sourceB));
+  const dx = sourceB[0] - sourceA[0];
+  const dy = sourceB[1] - sourceA[1];
+  const outward: Vec2 = area >= 0
+    ? [dy / edgeLength, -dx / edgeLength]
+    : [-dy / edgeLength, dx / edgeLength];
+  const offset: Vec2 = [outward[0] * depth, outward[1] * depth];
+  const outerA: Vec2 = [sourceA[0] + offset[0], sourceA[1] + offset[1]];
+  const outerB: Vec2 = [sourceB[0] + offset[0], sourceB[1] + offset[1]];
+  const backPolygon = profile.map(([x, y]): Vec2 =>
+    reflectAcrossLine([x + offset[0], y + offset[1]], outerA, outerB));
+
+  return {
+    polyhedronId: polyhedron.id,
+    faces: [
+      { faceId: definition.frontFaceId, polygon: profile },
+      ...sideFaces,
+      { faceId: definition.backFaceId, polygon: backPolygon },
+    ],
+    connections: [
+      ...definition.sideFaceIds.map((faceId): NetConnection => ({
+        faceA: definition.frontFaceId,
+        faceB: faceId,
+      })),
+      { faceA: definition.sideFaceIds[safeBack]!, faceB: definition.backFaceId },
+    ],
   };
 };
 
@@ -193,24 +351,51 @@ const polygonsOverlap = (first: NetFace, second: NetFace): boolean => {
       if (c !== undefined && d !== undefined && properIntersection(a, b, c, d)) return true;
     }
   }
-  const firstCenter: Vec2 = [
-    first.polygon.reduce((sum, [x]) => sum + x, 0) / first.polygon.length,
-    first.polygon.reduce((sum, [, y]) => sum + y, 0) / first.polygon.length,
-  ];
-  const secondCenter: Vec2 = [
-    second.polygon.reduce((sum, [x]) => sum + x, 0) / second.polygon.length,
-    second.polygon.reduce((sum, [, y]) => sum + y, 0) / second.polygon.length,
-  ];
+  const firstCenter: Vec2 = polygonCenter(first.polygon);
+  const secondCenter: Vec2 = polygonCenter(second.polygon);
   return pointInside(firstCenter, second.polygon) || pointInside(secondCenter, first.polygon);
 };
 
-export const createNet = (polyhedron: LogicalPolyhedron): PolyhedronNet => {
-  const definition = prismDefinition(polyhedron);
-  if (definition !== undefined) return buildPrismNet(polyhedron, definition);
-  const legacy = LEGACY_NETS[polyhedron.id];
-  if (legacy === undefined) throw new TypeError(`No net builder registered for ${polyhedron.id}`);
-  return legacy;
+const netHasOverlap = (net: PolyhedronNet): boolean => {
+  for (let first = 0; first < net.faces.length; first += 1) {
+    for (let second = first + 1; second < net.faces.length; second += 1) {
+      if (polygonsOverlap(net.faces[first]!, net.faces[second]!)) return true;
+    }
+  }
+  return false;
 };
+
+export const createNetWithStyle = (
+  polyhedron: LogicalPolyhedron,
+  variant = 0,
+): NetWithStyle => {
+  const definition = prismDefinition(polyhedron);
+  if (definition === undefined) {
+    const legacy = LEGACY_NETS[polyhedron.id];
+    if (legacy === undefined) throw new TypeError(`No net builder registered for ${polyhedron.id}`);
+    return { net: legacy, style: "legacy" };
+  }
+
+  const count = definition.sideFaceIds.length;
+  const normalizedVariant = ((variant % 3) + 3) % 3;
+  if (normalizedVariant === 1) {
+    const fan = buildFanPrismNet(polyhedron, definition, Math.floor(count / 2));
+    if (!netHasOverlap(fan)) return { net: fan, style: "fan-hub" };
+  }
+  if (normalizedVariant === 2) {
+    return {
+      net: buildStripPrismNet(polyhedron, definition, Math.floor(count / 3), Math.floor(count * 2 / 3)),
+      style: "strip-split-b",
+    };
+  }
+  return {
+    net: buildStripPrismNet(polyhedron, definition, 0, Math.max(1, Math.floor(count / 2))),
+    style: "strip-split-a",
+  };
+};
+
+export const createNet = (polyhedron: LogicalPolyhedron, variant = 0): PolyhedronNet =>
+  createNetWithStyle(polyhedron, variant).net;
 
 export interface NetVerification {
   readonly valid: boolean;
@@ -238,10 +423,6 @@ export const verifyNet = (
     }
   }
   if (reached.size !== net.faces.length) errors.push("Net is disconnected");
-  for (let first = 0; first < net.faces.length; first += 1) {
-    for (let second = first + 1; second < net.faces.length; second += 1) {
-      if (polygonsOverlap(net.faces[first]!, net.faces[second]!)) errors.push("Net faces overlap");
-    }
-  }
+  if (netHasOverlap(net)) errors.push("Net faces overlap");
   return { valid: errors.length === 0, errors };
 };
