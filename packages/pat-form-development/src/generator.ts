@@ -71,16 +71,18 @@ const createClippedRoofPrism = (random: RandomSource): LogicalPolyhedron => {
   const halfW = width / 2;
   const halfH = height / 2;
   const lowerClip = dimension(random.fork("lower-clip").float(0.16, 0.28));
-  const roofShoulder = dimension(random.fork("roof-shoulder").float(0.28, 0.42)) * width;
   const peakX = dimension(random.fork("peak-x").float(-0.18, 0.16)) * width;
+  // Keep this profile convex. The previous inset roof shoulders created two
+  // re-entrant corners; those produced a valid concave prism but no clean
+  // non-overlapping one-piece strip unfolding for some continuous parameters.
+  // Six irregular profile edges still yield an 8-face hard PAT solid while
+  // preserving the clipped base, asymmetric peak, and sloped roof grammar.
   const profile: readonly Vec2[] = [
     [-halfW + lowerClip, -halfH],
     [halfW - lowerClip * 0.8, -halfH],
     [halfW, -halfH + lowerClip * 0.8],
     [halfW, halfH * 0.28],
-    [peakX + roofShoulder, halfH * 0.28],
     [peakX, halfH],
-    [peakX - roofShoulder * 0.82, halfH * 0.28],
     [-halfW, halfH * 0.1],
   ];
   return createProfilePrism({ id: "profile-clipped-roof", profile, depth });
@@ -210,9 +212,6 @@ const axisScaleAmount = (
   });
   const maximumSpan = Math.max(...spans, 1e-9);
   const axisSpan = Math.max(spans[axis] ?? 0, 1e-9);
-  // Scaling about the center moves an extreme point by amount*axisSpan/2.
-  // Target 6.5% of the object's maximum span to stay safely above the 5.5%
-  // validator threshold even when depth/height is much smaller than width.
   return Math.min(0.45, Math.max(baseAmount, 0.13 * maximumSpan / axisSpan));
 };
 
