@@ -14,7 +14,11 @@ import {
 } from "@manipat/core";
 import type { CanonicalMesh } from "../kernel/types.js";
 import type { ProjectionFrame } from "./frames.js";
-import { extractLogicalTopology } from "../topology/logical-edges.js";
+import {
+  extractLogicalTopology,
+  type LogicalEdge,
+  type LogicalFace,
+} from "../topology/logical-edges.js";
 
 export interface OrthographicView {
   readonly frame: ProjectionFrame;
@@ -25,10 +29,16 @@ export interface OrthographicView {
 }
 
 export interface OrthographicViewOptions {
-  /** Fragment count per logical edge. Default 4 preserves existing TFE output. */
+  /** Fragment count per logical edge. */
   readonly subdivisions?: number;
-  /** Midpoint mode clips partial occlusion more conservatively for pictorial line art. */
+  /** Midpoint mode supports refined visible/hidden transition clipping. */
   readonly visibilityRule?: "any-sample" | "midpoint";
+  /**
+   * Suppress shallow mesh/facet creases below this angle unless the edge is a
+   * true view silhouette. Midpoint line-art defaults to 32° to suppress
+   * polygonized cylinders while preserving normal DAT chamfers and corners.
+   */
+  readonly displayCreaseAngleDegrees?: number;
 }
 
 interface PreparedTriangle {
@@ -54,22 +64,28 @@ interface TriangleGrid {
   readonly cellHeight: number;
 }
 
-const pointAt = (a: Vec3, b: Vec3, t: number): Vec3 => add3(a, scale3(subtract3(b, a), t));
+const pointAt = (a: Vec3, b: Vec3, t: number): Vec3 =>
+  add3(a, scale3(subtract3(b, a), t));
+
 const projectPoint = (point: Vec3, frame: ProjectionFrame): Vec2 => [
   dot3(point, frame.imageRight),
   dot3(point, frame.imageUp),
 ];
+
 const snap = (value: number): number => {
   const result = Number((Math.round(value / EPS.projection) * EPS.projection).toPrecision(15));
   return Object.is(result, -0) ? 0 : result;
 };
+
 const comparePoint = (a: Vec2, b: Vec2): number => a[0] - b[0] || a[1] - b[1];
 const pointKey = ([x, y]: Vec2): string => `${x},${y}`;
+
 const canonicalSegment = ({ a, b }: Segment2): Segment2 => {
   const first: Vec2 = [snap(a[0]), snap(a[1])];
   const second: Vec2 = [snap(b[0]), snap(b[1])];
   return comparePoint(first, second) <= 0 ? { a: first, b: second } : { a: second, b: first };
 };
+
 const segmentKey = (segment: Segment2): string =>
   `${segment.a[0]},${segment.a[1]}:${segment.b[0]},${segment.b[1]}`;
 
@@ -138,12 +154,6 @@ const gridCoordinate = (
   count: number,
 ): number => Math.max(0, Math.min(count - 1, Math.floor((value - minimum) / cellSize)));
 
-/**
- * Build a projected uniform grid over triangle bounds. Orthographic visibility
- * rays retain one fixed image-plane coordinate, so only triangles occupying the
- * corresponding cell can possibly occlude a sample. The exact ray/triangle
- * test remains the final authority; this is only a conservative broad phase.
- */
 const prepareTriangleGrid = (
   mesh: CanonicalMesh,
   frame: ProjectionFrame,
@@ -225,8 +235,6 @@ const isVisible = (
   for (const triangleIndex of candidateTriangleIndices(grid, projected)) {
     const triangle = grid.triangles[triangleIndex];
     if (triangle === undefined) continue;
-    // The cell test is conservative. Keep the exact projected triangle bounds
-    // check before the more expensive ray/triangle intersection.
     if (projected[0] < triangle.minX || projected[0] > triangle.maxX
       || projected[1] < triangle.minY || projected[1] > triangle.maxY) continue;
     const distance = rayTriangleDistance(
@@ -236,8 +244,6 @@ const isVisible = (
       triangle.b,
       triangle.c,
     );
-    // Visibility is boolean, so stop as soon as any true foreground occluder
-    // is found instead of scanning the rest of the projected cell.
     if (distance !== null && distance < occlusionThreshold) return false;
   }
   return true;
@@ -249,13 +255,6 @@ const areCollinear = (first: Segment2, second: Segment2): boolean => {
   return Math.abs(firstVector[0] * secondVector[1] - firstVector[1] * secondVector[0]) <= EPS.collinear;
 };
 
-/**
- * Merge only segments that are connected through a shared snapped endpoint and
- * collinear, matching the old pairwise rule without repeatedly rescanning all
- * segment pairs after every merge. Visibility fragmentation can create
- * thousands of tiny pieces on complex objects; endpoint indexing keeps this
- * stage close to linear for normal manifold edge graphs.
- */
 export const mergeCollinearSegments = (input: readonly Segment2[]): readonly Segment2[] => {
   const segments = [...new Map(input.map(canonicalSegment).map((segment) => [segmentKey(segment), segment])).values()];
   if (segments.length <= 1) return segments;
@@ -336,15 +335,27 @@ export const mergeCollinearSegments = (input: readonly Segment2[]): readonly Seg
     .sort((a, b) => segmentKey(a).localeCompare(segmentKey(b)));
 };
 
+const pointOnSegment2 = (point: Vec2, segment: Segment2): boolean => {
+  const dx = segment.b[0] - segment.a[0];
+  const dy = segment.b[1] - segment.a[1];
+  const cross = (point[0] - segment.a[0]) * dy - (point[1] - segment.a[1]) * dx;
+  const tolerance = EPS.projection * Math.max(4, Math.hypot(dx, dy));
+  if (Math.abs(cross) > tolerance) return false;
+  const dot = (point[0] - segment.a[0]) * dx + (point[1] - segment.a[1]) * dy;
+  return dot >= -tolerance && dot <= dx * dx + dy * dy + tolerance;
+};
+
+const coveredByVisible = (hidden: Segment2, visible: readonly Segment2[]): boolean =>
+  visible.some((candidate) => pointOnSegment2(hidden.a, candidate) && pointOnSegment2(hidden.b, candidate));
+
 export const canonicalizeOrthographicView = (
   frame: ProjectionFrame,
   visible: readonly Segment2[],
   hidden: readonly Segment2[],
 ): OrthographicView => {
   const mergedVisible = mergeCollinearSegments(visible);
-  const visibleKeys = new Set(mergedVisible.map(segmentKey));
   const mergedHidden = mergeCollinearSegments(hidden).filter(
-    (segment) => !visibleKeys.has(segmentKey(segment)),
+    (segment) => !coveredByVisible(segment, mergedVisible),
   );
   const all = [...mergedVisible, ...mergedHidden];
   const points = all.flatMap(({ a, b }) => [a, b]);
@@ -361,35 +372,147 @@ export const canonicalizeOrthographicView = (
   return { frame, visible: mergedVisible, hidden: mergedHidden, bounds, fingerprint };
 };
 
+const clampUnit = (value: number): number => Math.max(-1, Math.min(1, value));
+
+const isViewSilhouette = (
+  edge: LogicalEdge,
+  facesById: ReadonlyMap<string, LogicalFace>,
+  frame: ProjectionFrame,
+): boolean => {
+  if (edge.adjacentFaceIds.length !== 2) return false;
+  const first = facesById.get(edge.adjacentFaceIds[0] ?? "");
+  const second = facesById.get(edge.adjacentFaceIds[1] ?? "");
+  if (first === undefined || second === undefined) return false;
+  const firstFacing = dot3(first.normal, frame.viewDirection);
+  const secondFacing = dot3(second.normal, frame.viewDirection);
+  return (firstFacing <= EPS.coplanar && secondFacing >= -EPS.coplanar)
+    || (secondFacing <= EPS.coplanar && firstFacing >= -EPS.coplanar);
+};
+
+const shouldDisplayEdge = (
+  edge: LogicalEdge,
+  facesById: ReadonlyMap<string, LogicalFace>,
+  frame: ProjectionFrame,
+  minimumCreaseAngleDegrees: number,
+): boolean => {
+  if (edge.adjacentFaceIds.length !== 2) return true;
+  const first = facesById.get(edge.adjacentFaceIds[0] ?? "");
+  const second = facesById.get(edge.adjacentFaceIds[1] ?? "");
+  if (first === undefined || second === undefined) return true;
+  if (isViewSilhouette(edge, facesById, frame)) return true;
+  const cosine = clampUnit(dot3(first.normal, second.normal));
+  const angle = Math.acos(cosine) * 180 / Math.PI;
+  return angle + 1e-8 >= minimumCreaseAngleDegrees;
+};
+
+const refineTransition = (
+  edge: LogicalEdge,
+  grid: TriangleGrid,
+  frame: ProjectionFrame,
+  rayLength: number,
+  leftT: number,
+  rightT: number,
+  leftState: boolean,
+): number => {
+  let low = leftT;
+  let high = rightT;
+  for (let iteration = 0; iteration < 10; iteration += 1) {
+    const middle = (low + high) / 2;
+    const state = isVisible(grid, pointAt(edge.vertices.a, edge.vertices.b, middle), frame, rayLength);
+    if (state === leftState) low = middle;
+    else high = middle;
+  }
+  return (low + high) / 2;
+};
+
+const pushProjectedRun = (
+  target: Segment2[],
+  edge: LogicalEdge,
+  frame: ProjectionFrame,
+  startT: number,
+  endT: number,
+): void => {
+  const projected = canonicalSegment({
+    a: projectPoint(pointAt(edge.vertices.a, edge.vertices.b, startT), frame),
+    b: projectPoint(pointAt(edge.vertices.a, edge.vertices.b, endT), frame),
+  });
+  if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) > EPS.projection) {
+    target.push(projected);
+  }
+};
+
 export const createOrthographicView = (
   mesh: CanonicalMesh,
   frame: ProjectionFrame,
   options: OrthographicViewOptions = {},
 ): OrthographicView => {
   const topology = extractLogicalTopology(mesh);
+  const facesById = new Map(topology.faces.map((face) => [face.id, face] as const));
   const dimensions = mesh.bounds.max.map((maximum, index) => maximum - (mesh.bounds.min[index] ?? 0));
   const rayLength = Math.hypot(...dimensions) * 3 + 1;
   const triangleGrid = prepareTriangleGrid(mesh, frame);
   const visible: Segment2[] = [];
   const hidden: Segment2[] = [];
-  const subdivisions = options.subdivisions ?? 4;
+  const subdivisions = Math.max(1, Math.floor(options.subdivisions ?? 4));
   const visibilityRule = options.visibilityRule ?? "any-sample";
+  const minimumCreaseAngleDegrees = options.displayCreaseAngleDegrees
+    ?? (visibilityRule === "midpoint" ? 32 : 20);
 
   for (const edge of topology.edges) {
-    for (let part = 0; part < subdivisions; part += 1) {
+    if (!shouldDisplayEdge(edge, facesById, frame, minimumCreaseAngleDegrees)) continue;
+
+    const states = Array.from({ length: subdivisions }, (_, part) => {
       const startT = part / subdivisions;
       const endT = (part + 1) / subdivisions;
+      if (visibilityRule === "midpoint") {
+        return isVisible(
+          triangleGrid,
+          pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2),
+          frame,
+          rayLength,
+        );
+      }
       const start = pointAt(edge.vertices.a, edge.vertices.b, startT);
       const end = pointAt(edge.vertices.a, edge.vertices.b, endT);
-      const projected = canonicalSegment({ a: projectPoint(start, frame), b: projectPoint(end, frame) });
-      if (Math.hypot(projected.b[0] - projected.a[0], projected.b[1] - projected.a[1]) <= EPS.projection) continue;
+      return [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].some((t) =>
+        isVisible(triangleGrid, pointAt(start, end, t), frame, rayLength));
+    });
 
-      const edgeVisible = visibilityRule === "midpoint"
-        ? isVisible(triangleGrid, pointAt(edge.vertices.a, edge.vertices.b, (startT + endT) / 2), frame, rayLength)
-        : [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].some((t) =>
-          isVisible(triangleGrid, pointAt(start, end, t), frame, rayLength));
-      (edgeVisible ? visible : hidden).push(projected);
+    const boundaries = Array.from({ length: subdivisions + 1 }, (_, index) => index / subdivisions);
+    if (visibilityRule === "midpoint") {
+      for (let boundary = 1; boundary < subdivisions; boundary += 1) {
+        const leftState = states[boundary - 1];
+        const rightState = states[boundary];
+        if (leftState === undefined || rightState === undefined || leftState === rightState) continue;
+        const leftMidpoint = (boundary - 0.5) / subdivisions;
+        const rightMidpoint = (boundary + 0.5) / subdivisions;
+        boundaries[boundary] = refineTransition(
+          edge,
+          triangleGrid,
+          frame,
+          rayLength,
+          leftMidpoint,
+          rightMidpoint,
+          leftState,
+        );
+      }
+    }
+
+    let runStart = 0;
+    while (runStart < subdivisions) {
+      const state = states[runStart] ?? false;
+      let runEnd = runStart + 1;
+      while (runEnd < subdivisions && states[runEnd] === state) runEnd += 1;
+      pushProjectedRun(
+        state ? visible : hidden,
+        edge,
+        frame,
+        boundaries[runStart] ?? runStart / subdivisions,
+        boundaries[runEnd] ?? runEnd / subdivisions,
+      );
+      runStart = runEnd;
     }
   }
+
   return canonicalizeOrthographicView(frame, visible, hidden);
 };
