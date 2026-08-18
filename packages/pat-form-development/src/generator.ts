@@ -8,7 +8,7 @@ import {
   type Vec3,
 } from "@manipat/core";
 import { buildFaceAdjacency } from "./adjacency.js";
-import { createNet } from "./nets.js";
+import { createNetWithStyle } from "./nets.js";
 import { createHousePrism, createProfilePrism, createTrapezoidalPrism } from "./polyhedra.js";
 import { renderFoldedChoice, renderNet } from "./render.js";
 import type {
@@ -198,7 +198,8 @@ export const generateFormDevelopmentQuestion = (
 ): FormDevelopmentQuestion => {
   const random = createRandomSource(seed);
   const polyhedron = createQuestionPolyhedron(random.fork("polyhedron"), difficulty);
-  const net = createNet(polyhedron);
+  const netVariant = random.fork("net-layout").int(0, 2);
+  const { net, style: netLayoutStyle } = createNetWithStyle(polyhedron, netVariant);
   const patterns = {};
   const targetFingerprint = choiceFingerprint(polyhedron.id, polyhedron.vertices);
 
@@ -271,6 +272,8 @@ export const generateFormDevelopmentQuestion = (
       geometryVariation: "continuous-parameters",
       modelTier: complexModel ? "golden-complex-v3" : "foundation-v2",
       faceCount: polyhedron.faces.length,
+      netLayoutStyle,
+      netLayoutVariant: netVariant,
       variedChoiceOrientations: true,
     },
   };
