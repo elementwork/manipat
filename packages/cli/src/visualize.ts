@@ -8,6 +8,7 @@ import {
 } from "@manipat/core";
 import {
   applyFold,
+  buildPaperVisualFoldTransitions,
   createInitialFoldState,
   punchState,
   readPersistedQuestions,
@@ -117,6 +118,81 @@ const movedPunchedLayerCount = (
   return moved;
 };
 
+const escapeXml = (value: string): string => value
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&apos;");
+
+const svgInner = (svg: string): string => {
+  const opening = svg.indexOf(">");
+  const closing = svg.lastIndexOf("</svg>");
+  return opening >= 0 && closing > opening ? svg.slice(opening + 1, closing) : svg;
+};
+
+const blankPaperInner = (): string => {
+  const grid = Array.from({ length: 3 }, (_, offset) => offset + 1).flatMap((index) => [
+    `<line x1="${index}" y1="0" x2="${index}" y2="4" stroke="#d5d9de" stroke-width="0.035"/>`,
+    `<line x1="0" y1="${index}" x2="4" y2="${index}" stroke="#d5d9de" stroke-width="0.035"/>`,
+  ]).join("");
+  return `<rect x="0" y="0" width="4" height="4" fill="white" stroke="black" stroke-width="0.08"/>${grid}`;
+};
+
+const overviewCircle = (point: Vec2, fill: string, stroke: string, extra = ""): string =>
+  `<circle cx="${point[0].toFixed(4)}" cy="${point[1].toFixed(4)}" r="0.17" fill="${fill}" stroke="${stroke}" stroke-width="0.055" ${extra}/>`;
+
+const paperStepInner = (step: PaperGuideStepPayload): string => {
+  let body = step.baseSvg === null ? blankPaperInner() : svgInner(step.baseSvg);
+  if (step.foldLine !== undefined) {
+    const { point, unitDirection } = step.foldLine;
+    const scale = 8;
+    body += `<line x1="${point[0] - unitDirection[0] * scale}" y1="${point[1] - unitDirection[1] * scale}" x2="${point[0] + unitDirection[0] * scale}" y2="${point[1] + unitDirection[1] * scale}" stroke="#537fa6" stroke-width="0.055" stroke-dasharray="0.18 0.12"/>`;
+  }
+  for (const point of step.departedHoles) {
+    body += overviewCircle(point, "none", "#8a929b", 'stroke-dasharray="0.09 0.07"');
+  }
+  const newKeys = new Set(step.newHoles.map(pointKey));
+  for (const point of step.holes) {
+    const isNew = newKeys.has(pointKey(point));
+    body += overviewCircle(point, isNew ? "#c85f4b" : "#20242a", isNew ? "#9f4536" : "#20242a");
+  }
+  return body;
+};
+
+const renderPaperOverviewSvg = (
+  questionSvgs: readonly string[],
+  steps: readonly PaperGuideStepPayload[],
+): string => {
+  const panelSize = 110;
+  const stride = 148;
+  const margin = 24;
+  const rowOneY = 38;
+  const rowTwoY = 206;
+  const columns = Math.max(questionSvgs.length, steps.length, 1);
+  const width = margin * 2 + (columns - 1) * stride + panelSize;
+  const height = 350;
+  const row = (
+    panels: readonly { readonly inner: string; readonly label: string }[],
+    y: number,
+  ): string => panels.map(({ inner, label }, index) => {
+    const x = margin + index * stride;
+    const arrow = index === panels.length - 1
+      ? ""
+      : `<text x="${x + panelSize + 12}" y="${y + panelSize / 2 + 5}" font-size="18" fill="#7a838d">→</text>`;
+    return `<text x="${x + panelSize / 2}" y="${y - 10}" text-anchor="middle" font-size="12" font-family="system-ui,sans-serif" fill="#3f4750">${escapeXml(label)}</text><svg x="${x}" y="${y}" width="${panelSize}" height="${panelSize}" viewBox="-0.2 -0.2 4.4 4.4">${inner}</svg>${arrow}`;
+  }).join("");
+  const forward = questionSvgs.map((svg, index) => ({
+    inner: svgInner(svg),
+    label: index === questionSvgs.length - 1 ? "Punch" : `Fold ${index + 1}`,
+  }));
+  const reverse = steps.map((step, index) => ({
+    inner: paperStepInner(step),
+    label: index === 0 ? "Punch stack" : step.completedFoldCount === 0 ? "Solved" : `Unfold ${index}`,
+  }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Paper punching forward folds and reverse-unfold explanation"><rect width="100%" height="100%" fill="#ffffff"/><text x="${margin}" y="20" font-size="13" font-weight="650" font-family="system-ui,sans-serif" fill="#20242a">Forward: fold and punch</text>${row(forward, rowOneY)}<line x1="${margin}" y1="180" x2="${width - margin}" y2="180" stroke="#e3e6ea"/><text x="${margin}" y="198" font-size="13" font-weight="650" font-family="system-ui,sans-serif" fill="#20242a">Reverse: unfold to the answer</text>${row(reverse, rowTwoY)}</svg>`;
+};
+
 const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
   const states: FoldState[] = [];
   let state = createInitialFoldState();
@@ -179,11 +255,13 @@ const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
 
   const correctChoice = question.choices[question.correctChoiceIndex];
   if (correctChoice === undefined) throw new Error("Paper question correct choice is missing");
+  const foldAnimations = buildPaperVisualFoldTransitions(question.prompt.folds);
   return {
     kind: "paper-guide",
     questionId: question.id,
     category: question.type,
     title: "Paper Punching — guided unfolding",
+    overviewSvg: renderPaperOverviewSvg(question.prompt.stepSvgs, steps),
     questionSvgs: question.prompt.stepSvgs,
     correctSvg: correctChoice.svg,
     punches: punchedState.punches.map(({ point, sourceLayerIds }) => ({
@@ -191,6 +269,7 @@ const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
       layerCount: sourceLayerIds.length,
     })),
     steps,
+    foldAnimations,
   };
 };
 
@@ -291,6 +370,8 @@ const payloadSummary = (payload: ViewerPayload): JsonValue => {
     category: payload.category,
     kind: payload.kind,
     stepCount: payload.steps.length,
+    animationCount: payload.foldAnimations.length,
+    hasOverview: payload.overviewSvg.startsWith("<svg"),
     punchCount: payload.punches.length,
     finalHoleCount: finalStep?.holes.length ?? 0,
   };
@@ -328,9 +409,6 @@ const buildPayloads = async (
   questions: readonly AnyPatQuestion[],
 ): Promise<readonly ViewerPayload[]> => {
   const payloads: ViewerPayload[] = [];
-  // Reconstruct sequentially. Aperture/TFE use WASM-backed geometry kernels;
-  // keeping this deterministic and low-memory is more useful for a local
-  // inspector than maximizing startup parallelism.
   for (const question of questions) payloads.push(await buildVisualizationPayload(question));
   return payloads;
 };

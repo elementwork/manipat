@@ -62,13 +62,26 @@ describe("offline CLI", () => {
       });
     }
 
-    const paperResult = await execFileAsync(process.execPath, [
+    const paperRuntime = await execFileAsync(process.execPath, [
       viewerCli, first, "--category", "paper", "--dry-run",
     ]);
-    const paperSummary = JSON.parse(paperResult.stdout) as {
-      questions: Array<{ stepCount: number; finalHoleCount: number }>;
+    const paperSummary = JSON.parse(paperRuntime.stdout) as {
+      questions: Array<{
+        category: string;
+        kind: string;
+        stepCount: number;
+        animationCount: number;
+        hasOverview: boolean;
+        finalHoleCount: number;
+      }>;
     };
+    expect(paperSummary.questions[0]).toMatchObject({
+      category: "paper-folding",
+      kind: "paper-guide",
+      hasOverview: true,
+    });
     expect(paperSummary.questions[0]?.stepCount).toBeGreaterThanOrEqual(2);
+    expect(paperSummary.questions[0]?.animationCount).toBeGreaterThan(0);
     expect(paperSummary.questions[0]?.finalHoleCount).toBeGreaterThanOrEqual(1);
   }, 60_000);
 

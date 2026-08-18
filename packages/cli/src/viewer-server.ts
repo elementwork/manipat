@@ -17,7 +17,7 @@ export const renderViewerHtml = (
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ManipAT Interactive Viewer</title>
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-nav button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.color-legend{position:absolute;right:.75rem;top:.75rem;z-index:3;background:rgba(255,255,255,.94);border:1px solid #d8dde3;border-radius:.55rem;padding:.55rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.72rem;color:#58616a;pointer-events:none}.color-legend-title{font-weight:650;color:#303842;margin-bottom:.3rem}.color-legend-row{display:flex;align-items:center;gap:.35rem;margin:.16rem 0}.swatch{width:.72rem;height:.72rem;border-radius:.2rem;border:1px solid rgba(32,36,42,.18)}.swatch.body{background:#d9dde3}.swatch.raised{background:#b9d7f0}.swatch.recess{background:#f0b7aa}.swatch.terminal{background:#f2d38b}.color-legend-note{max-width:15rem;margin-top:.35rem;line-height:1.25;color:#777f88}.paper-guide{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;gap:.8rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-sequence{display:flex;gap:.6rem;overflow-x:auto;padding:.15rem .1rem .45rem}.paper-sequence-item{flex:0 0 112px;background:#fff;border:1px solid #dde1e6;border-radius:.55rem;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-sequence-item svg{width:100%;height:auto;display:block}.paper-sequence-label{text-align:center;font-size:.72rem;color:#636b74;margin-top:.2rem}.paper-main{display:grid;grid-template-columns:minmax(260px,560px) minmax(220px,330px);gap:1rem;align-items:center;justify-content:center;min-height:0}.paper-svg{display:flex;align-items:center;justify-content:center;min-height:280px}.paper-svg svg{width:min(70vw,520px);max-height:58vh;height:auto;display:block}.paper-card{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.85rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-step-title{font-weight:650;margin-bottom:.45rem}.paper-detail{font-size:.88rem;line-height:1.45;color:#3e4650}.paper-stats{font-size:.8rem;line-height:1.5;color:#636b74;margin-top:.7rem;padding-top:.6rem;border-top:1px solid #eceff2}.paper-legend{font-size:.75rem;color:#636b74;margin-top:.65rem}.paper-legend span{display:inline-flex;align-items:center;gap:.25rem;margin-right:.6rem}.dot{width:.62rem;height:.62rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.paper-nav{display:flex;gap:.55rem;align-items:center;justify-content:center;padding:.2rem}.paper-progress{min-width:7rem;text-align:center;font-size:.82rem;color:#59616a}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font-size:.78rem;padding:.4rem .5rem}.paper-main{grid-template-columns:1fr;align-items:start}.paper-svg svg{width:min(92vw,480px);max-height:none}.paper-card{max-width:520px;width:100%;margin:0 auto}.paper-sequence-item{flex-basis:94px}.color-legend{right:.45rem;top:.45rem;max-width:12.5rem}}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-nav button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.color-legend{position:absolute;right:.75rem;top:.75rem;z-index:3;background:rgba(255,255,255,.94);border:1px solid #d8dde3;border-radius:.55rem;padding:.55rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.72rem;color:#58616a;pointer-events:none}.color-legend-title{font-weight:650;color:#303842;margin-bottom:.3rem}.color-legend-row{display:flex;align-items:center;gap:.35rem;margin:.16rem 0}.swatch{width:.72rem;height:.72rem;border-radius:.2rem;border:1px solid rgba(32,36,42,.18)}.swatch.body{background:#d9dde3}.swatch.raised{background:#b9d7f0}.swatch.recess{background:#f0b7aa}.swatch.terminal{background:#f2d38b}.color-legend-note{max-width:15rem;margin-top:.35rem;line-height:1.25;color:#777f88}.paper-modebar{display:flex;gap:.4rem;justify-content:center;align-items:center;flex-wrap:wrap}.paper-modebar button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .7rem;color:#20242a}.paper-modebar button.active{background:#e9eef4;border-color:#8796a7}.paper-overview{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.65rem;overflow:auto;min-height:0}.paper-overview svg{display:block;width:max(700px,100%);height:auto}.paper-step-view{display:grid;grid-template-rows:auto 1fr auto;gap:.8rem;min-height:0}.paper-animation-view{display:grid;grid-template-rows:1fr auto;gap:.7rem;min-height:0}.paper-animation-svg{display:flex;align-items:center;justify-content:center;min-height:300px;background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.6rem}.paper-animation-svg svg{width:min(70vw,560px);max-height:62vh;height:auto;display:block}.paper-animation-controls{display:flex;gap:.55rem;align-items:center;justify-content:center;flex-wrap:wrap}.paper-animation-controls button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .7rem}.paper-animation-status{font-size:.82rem;color:#59616a;min-width:11rem;text-align:center}.paper-guide{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr;gap:.8rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-sequence{display:flex;gap:.6rem;overflow-x:auto;padding:.15rem .1rem .45rem}.paper-sequence-item{flex:0 0 112px;background:#fff;border:1px solid #dde1e6;border-radius:.55rem;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-sequence-item svg{width:100%;height:auto;display:block}.paper-sequence-label{text-align:center;font-size:.72rem;color:#636b74;margin-top:.2rem}.paper-main{display:grid;grid-template-columns:minmax(260px,560px) minmax(220px,330px);gap:1rem;align-items:center;justify-content:center;min-height:0}.paper-svg{display:flex;align-items:center;justify-content:center;min-height:280px}.paper-svg svg{width:min(70vw,520px);max-height:58vh;height:auto;display:block}.paper-card{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.85rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-step-title{font-weight:650;margin-bottom:.45rem}.paper-detail{font-size:.88rem;line-height:1.45;color:#3e4650}.paper-stats{font-size:.8rem;line-height:1.5;color:#636b74;margin-top:.7rem;padding-top:.6rem;border-top:1px solid #eceff2}.paper-legend{font-size:.75rem;color:#636b74;margin-top:.65rem}.paper-legend span{display:inline-flex;align-items:center;gap:.25rem;margin-right:.6rem}.dot{width:.62rem;height:.62rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.paper-nav{display:flex;gap:.55rem;align-items:center;justify-content:center;padding:.2rem}.paper-progress{min-width:7rem;text-align:center;font-size:.82rem;color:#59616a}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font-size:.78rem;padding:.4rem .5rem}.paper-main{grid-template-columns:1fr;align-items:start}.paper-svg svg{width:min(92vw,480px);max-height:none}.paper-card{max-width:520px;width:100%;margin:0 auto}.paper-sequence-item{flex-basis:94px}}
 </style>
 <script type="importmap">{"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}</script>
 </head>
@@ -41,26 +41,42 @@ export const renderViewerHtml = (
     <div id="color-legend" class="color-legend hidden">
       <div class="color-legend-title">Color Code · learning cues</div>
       <div class="color-legend-row"><i class="swatch body"></i>Body / neutral surface</div>
-      <div class="color-legend-row"><i class="swatch raised"></i>Convex / raised feature</div>
+      <div class="color-legend-row"><i class="swatch raised"></i>Raised feature (provenance-backed)</div>
       <div class="color-legend-row"><i class="swatch recess"></i>Hole / recess wall</div>
-      <div class="color-legend-row"><i class="swatch terminal"></i>Interior terminating surface</div>
-      <div class="color-legend-note">Educational geometry cues only; the neutral model remains the canonical exam view.</div>
+      <div class="color-legend-row"><i class="swatch terminal"></i>Likely blind-hole / recess floor</div>
+      <div class="color-legend-note">Whole-surface learning cues only. Uncertain geometry stays neutral.</div>
     </div>
     <section id="paper-guide" class="paper-guide hidden" aria-label="Paper punching guided explanation">
-      <div id="paper-sequence" class="paper-sequence"></div>
-      <div class="paper-main">
-        <div id="paper-svg" class="paper-svg"></div>
-        <aside class="paper-card">
-          <div id="paper-step-title" class="paper-step-title"></div>
-          <div id="paper-detail" class="paper-detail"></div>
-          <div id="paper-stats" class="paper-stats"></div>
-          <div class="paper-legend"><span><i class="dot old"></i>existing</span><span><i class="dot new"></i>new after unfold</span><span><i class="dot prior"></i>prior stacked position</span></div>
-        </aside>
+      <div class="paper-modebar">
+        <button id="paper-mode-overview" type="button">All steps</button>
+        <button id="paper-mode-steps" type="button">Step-by-step</button>
+        <button id="paper-mode-animation" type="button">Animate folds</button>
       </div>
-      <div class="paper-nav">
-        <button id="paper-previous" type="button">← Previous step</button>
-        <span id="paper-progress" class="paper-progress"></span>
-        <button id="paper-next" type="button">Next step →</button>
+      <div id="paper-overview" class="paper-overview"></div>
+      <div id="paper-step-view" class="paper-step-view hidden">
+        <div id="paper-sequence" class="paper-sequence"></div>
+        <div class="paper-main">
+          <div id="paper-svg" class="paper-svg"></div>
+          <aside class="paper-card">
+            <div id="paper-step-title" class="paper-step-title"></div>
+            <div id="paper-detail" class="paper-detail"></div>
+            <div id="paper-stats" class="paper-stats"></div>
+            <div class="paper-legend"><span><i class="dot old"></i>existing</span><span><i class="dot new"></i>new after unfold</span><span><i class="dot prior"></i>prior stacked position</span></div>
+          </aside>
+        </div>
+        <div class="paper-nav">
+          <button id="paper-previous" type="button">← Previous step</button>
+          <span id="paper-progress" class="paper-progress"></span>
+          <button id="paper-next" type="button">Next step →</button>
+        </div>
+      </div>
+      <div id="paper-animation-view" class="paper-animation-view hidden">
+        <div id="paper-animation-svg" class="paper-animation-svg"></div>
+        <div class="paper-animation-controls">
+          <button id="paper-animation-play" type="button">▶ Play folds</button>
+          <button id="paper-animation-replay" type="button">↻ Replay current fold</button>
+          <span id="paper-animation-status" class="paper-animation-status"></span>
+        </div>
       </div>
     </section>
     <div id="hint" class="hint">Drag to rotate · wheel/pinch to zoom · right-drag/two-finger drag to pan</div>
@@ -86,6 +102,16 @@ const categoryLabels = { aperture:"Aperture", "view-recognition":"TFE", "paper-f
 const canvas = document.getElementById("canvas");
 const colorLegend = document.getElementById("color-legend");
 const paperGuide = document.getElementById("paper-guide");
+const paperModeOverview = document.getElementById("paper-mode-overview");
+const paperModeSteps = document.getElementById("paper-mode-steps");
+const paperModeAnimation = document.getElementById("paper-mode-animation");
+const paperOverview = document.getElementById("paper-overview");
+const paperStepView = document.getElementById("paper-step-view");
+const paperAnimationView = document.getElementById("paper-animation-view");
+const paperAnimationSvg = document.getElementById("paper-animation-svg");
+const paperAnimationPlay = document.getElementById("paper-animation-play");
+const paperAnimationReplay = document.getElementById("paper-animation-replay");
+const paperAnimationStatus = document.getElementById("paper-animation-status");
 const paperSequence = document.getElementById("paper-sequence");
 const paperSvg = document.getElementById("paper-svg");
 const paperStepTitle = document.getElementById("paper-step-title");
@@ -120,6 +146,9 @@ const explainWrap = document.getElementById("explain-wrap");
 let viewer;
 let paperPayload;
 let paperStep = 0;
+let paperMode = "overview";
+let paperAnimationIndex = 0;
+let paperAnimationToken = 0;
 let filteredIndices = [];
 let activePosition = 0;
 
@@ -152,7 +181,7 @@ const blankSheetSvg = () => {
 };
 
 const paperSvgWithOverlays = (step) => {
-  const base = step.baseSvg ?? blankSheetSvg();
+  let base = step.baseSvg ?? blankSheetSvg();
   let overlays = "";
   if (step.foldLine !== undefined) {
     const point = step.foldLine.point;
@@ -160,18 +189,14 @@ const paperSvgWithOverlays = (step) => {
     const scale = 8;
     overlays += '<line x1="' + String(point[0] - direction[0] * scale) + '" y1="' + String(point[1] - direction[1] * scale) + '" x2="' + String(point[0] + direction[0] * scale) + '" y2="' + String(point[1] + direction[1] * scale) + '" stroke="#537fa6" stroke-width="0.055" stroke-dasharray="0.18 0.12" opacity="0.9"/>';
   }
-  for (const point of step.departedHoles) {
-    overlays += circleSvg(point, "none", "#8a929b", 'stroke-dasharray="0.09 0.07" opacity="0.85"');
-  }
+  for (const point of step.departedHoles) overlays += circleSvg(point, "none", "#8a929b", 'stroke-dasharray="0.09 0.07" opacity="0.85"');
   const newKeys = new Set(step.newHoles.map(pointKey));
   for (const point of step.holes) {
     const isNew = newKeys.has(pointKey(point));
     overlays += circleSvg(point, isNew ? "#c85f4b" : "#20242a", isNew ? "#9f4536" : "#20242a", "");
   }
   const closing = base.lastIndexOf("</svg>");
-  return closing >= 0
-    ? base.slice(0, closing) + overlays + base.slice(closing)
-    : base + overlays;
+  return closing >= 0 ? base.slice(0, closing) + overlays + "</svg>" : base;
 };
 
 const renderPaperStep = () => {
@@ -196,16 +221,98 @@ const renderPaperStep = () => {
   paperNext.disabled = paperStep === paperPayload.steps.length - 1;
 };
 
+const svgPolygonPoints = (polygon) => polygon.map((point) => Number(point[0]).toFixed(4) + "," + Number(point[1]).toFixed(4)).join(" ");
+const foldAnimatedPoint = (point, line, progress) => {
+  const dx = point[0] - line.point[0];
+  const dy = point[1] - line.point[1];
+  const projection = dx * line.unitDirection[0] + dy * line.unitDirection[1];
+  const projectedX = line.point[0] + projection * line.unitDirection[0];
+  const projectedY = line.point[1] + projection * line.unitDirection[1];
+  const scale = Math.cos(Math.PI * progress);
+  return [projectedX + (point[0] - projectedX) * scale, projectedY + (point[1] - projectedY) * scale];
+};
+const foldAnimationSvg = (animation, progress) => {
+  let body = '<rect x="0" y="0" width="4" height="4" fill="none" stroke="#7c858f" stroke-width="0.055" stroke-dasharray="0.18 0.14"/>';
+  for (const polygon of animation.stationaryPolygons) body += '<polygon points="' + svgPolygonPoints(polygon) + '" fill="#fff" stroke="#20242a" stroke-width="0.075" stroke-linejoin="round"/>';
+  for (const polygon of animation.movingPolygons) {
+    const transformed = polygon.map((point) => foldAnimatedPoint(point, animation.line, progress));
+    body += '<polygon points="' + svgPolygonPoints(transformed) + '" fill="#dceaf5" stroke="#365d7d" stroke-width="0.08" stroke-linejoin="round"/>';
+  }
+  const point = animation.line.point;
+  const direction = animation.line.unitDirection;
+  const scale = 8;
+  body += '<line x1="' + String(point[0] - direction[0] * scale) + '" y1="' + String(point[1] - direction[1] * scale) + '" x2="' + String(point[0] + direction[0] * scale) + '" y2="' + String(point[1] + direction[1] * scale) + '" stroke="#537fa6" stroke-width="0.05" stroke-dasharray="0.16 0.11"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 4.4 4.4">' + body + '</svg>';
+};
+const renderPaperAnimationFrame = (index, progress) => {
+  if (paperPayload === undefined) return;
+  const animations = paperPayload.foldAnimations ?? [];
+  if (animations.length === 0) {
+    paperAnimationSvg.innerHTML = paperPayload.questionSvgs.at(-1) ?? blankSheetSvg();
+    paperAnimationStatus.textContent = "No fold animation data";
+    return;
+  }
+  paperAnimationIndex = Math.min(animations.length - 1, Math.max(0, index));
+  const animation = animations[paperAnimationIndex];
+  paperAnimationSvg.innerHTML = foldAnimationSvg(animation, progress);
+  paperAnimationStatus.textContent = "Fold " + String(paperAnimationIndex + 1) + " / " + String(animations.length) + " · " + animation.foldId;
+};
+const animateOnePaperFold = (index, token) => new Promise((resolve) => {
+  if (paperPayload === undefined) { resolve(); return; }
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  if (reduced) {
+    renderPaperAnimationFrame(index, 1);
+    window.setTimeout(resolve, 120);
+    return;
+  }
+  const started = performance.now();
+  const duration = 780;
+  const frame = (now) => {
+    if (token !== paperAnimationToken) { resolve(); return; }
+    const progress = Math.min(1, (now - started) / duration);
+    renderPaperAnimationFrame(index, progress);
+    if (progress < 1) requestAnimationFrame(frame);
+    else window.setTimeout(resolve, 180);
+  };
+  requestAnimationFrame(frame);
+});
+const playPaperFolds = async (fromCurrent = false) => {
+  if (paperPayload === undefined) return;
+  const token = ++paperAnimationToken;
+  const animations = paperPayload.foldAnimations ?? [];
+  const start = fromCurrent ? paperAnimationIndex : 0;
+  for (let index = start; index < animations.length; index += 1) {
+    if (token !== paperAnimationToken) return;
+    await animateOnePaperFold(index, token);
+  }
+  if (token !== paperAnimationToken) return;
+  paperAnimationSvg.innerHTML = paperPayload.questionSvgs.at(-1) ?? blankSheetSvg();
+  paperAnimationStatus.textContent = "Fold sequence complete · punch frame";
+};
+const setPaperMode = (mode) => {
+  paperMode = mode;
+  paperAnimationToken += 1;
+  paperOverview.classList.toggle("hidden", mode !== "overview");
+  paperStepView.classList.toggle("hidden", mode !== "steps");
+  paperAnimationView.classList.toggle("hidden", mode !== "animation");
+  paperModeOverview.classList.toggle("active", mode === "overview");
+  paperModeSteps.classList.toggle("active", mode === "steps");
+  paperModeAnimation.classList.toggle("active", mode === "animation");
+  if (mode === "animation") renderPaperAnimationFrame(paperAnimationIndex, 0);
+};
+
 const mountPaper = (payload) => {
   paperPayload = payload;
   paperStep = 0;
+  paperAnimationIndex = 0;
   canvas.classList.add("hidden");
-  hint.classList.add("hidden");
   colorLegend.classList.add("hidden");
+  hint.classList.add("hidden");
   paperGuide.classList.remove("hidden");
   runtimeControls.classList.add("hidden");
   viewControls.classList.add("hidden");
   target.classList.add("hidden");
+  paperOverview.innerHTML = payload.overviewSvg;
   paperSequence.replaceChildren();
   payload.questionSvgs.forEach((svg, index) => {
     const item = document.createElement("div");
@@ -218,14 +325,17 @@ const mountPaper = (payload) => {
     item.append(picture, label);
     paperSequence.append(item);
   });
+  setPaperMode("overview");
   renderPaperStep();
-  status.textContent = "Guided reverse-unfold explanation ready";
+  renderPaperAnimationFrame(0, 0);
+  status.textContent = "Paper overview, guided unfolding, and fold animation ready";
   status.style.color = "";
 };
 
 const mountThree = (payload) => {
   paperPayload = undefined;
   paperGuide.classList.add("hidden");
+  colorLegend.classList.add("hidden");
   canvas.classList.remove("hidden");
   hint.classList.remove("hidden");
   runtimeControls.classList.remove("hidden");
@@ -255,6 +365,7 @@ const mountPosition = (requestedPosition) => {
   if (viewer !== undefined) viewer.dispose();
   viewer = undefined;
   paperPayload = undefined;
+  paperAnimationToken += 1;
   canvas.replaceChildren();
   viewControls.replaceChildren();
   resetToggles();
@@ -301,23 +412,28 @@ next.addEventListener("click", () => mountPosition(activePosition + 1));
 target.addEventListener("click", () => viewer?.setTargetView());
 reset.addEventListener("click", () => {
   if (paperPayload !== undefined) {
+    paperAnimationToken += 1;
     paperStep = 0;
+    paperAnimationIndex = 0;
     renderPaperStep();
-  } else {
-    viewer?.reset();
-    colorCode.checked = false;
-    colorLegend.classList.add("hidden");
-  }
+    renderPaperAnimationFrame(0, 0);
+    setPaperMode("overview");
+  } else viewer?.reset();
 });
 auto.addEventListener("change", () => viewer?.setAutoRotate(auto.checked));
 colorCode.addEventListener("change", () => {
   viewer?.setColorCoded(colorCode.checked);
-  colorLegend.classList.toggle("hidden", !colorCode.checked || colorWrap.classList.contains("hidden"));
+  colorLegend.classList.toggle("hidden", !colorCode.checked);
 });
 ghost.addEventListener("change", () => viewer?.setGhosted(ghost.checked));
 surface.addEventListener("change", () => viewer?.setSurfaceVisible(surface.checked));
 edges.addEventListener("change", () => viewer?.setEdgesVisible(edges.checked));
 explain.addEventListener("change", () => viewer?.setExplanationVisible(explain.checked));
+paperModeOverview.addEventListener("click", () => setPaperMode("overview"));
+paperModeSteps.addEventListener("click", () => setPaperMode("steps"));
+paperModeAnimation.addEventListener("click", () => setPaperMode("animation"));
+paperAnimationPlay.addEventListener("click", () => { void playPaperFolds(false); });
+paperAnimationReplay.addEventListener("click", () => { void playPaperFolds(true); });
 paperPrevious.addEventListener("click", () => {
   if (paperPayload === undefined) return;
   paperStep = Math.max(0, paperStep - 1);
@@ -328,7 +444,7 @@ paperNext.addEventListener("click", () => {
   paperStep = Math.min(paperPayload.steps.length - 1, paperStep + 1);
   renderPaperStep();
 });
-window.addEventListener("beforeunload", () => viewer?.dispose(), { once: true });
+window.addEventListener("beforeunload", () => { paperAnimationToken += 1; viewer?.dispose(); }, { once: true });
 rebuildQuestionList(0);
 </script>
 </body>
@@ -392,19 +508,11 @@ export const startViewerServer = async (
           return;
         }
         if (pathname.startsWith("/vendor/three/addons/")) {
-          await serveFile(
-            response,
-            path.join(threeRoot, "examples/jsm"),
-            pathname.slice("/vendor/three/addons/".length),
-          );
+          await serveFile(response, path.join(threeRoot, "examples/jsm"), pathname.slice("/vendor/three/addons/".length));
           return;
         }
         if (pathname.startsWith("/vendor/three/")) {
-          await serveFile(
-            response,
-            path.join(threeRoot, "build"),
-            pathname.slice("/vendor/three/".length),
-          );
+          await serveFile(response, path.join(threeRoot, "build"), pathname.slice("/vendor/three/".length));
           return;
         }
         if (pathname.startsWith("/runtime/")) {
