@@ -33,17 +33,24 @@ export const createExamEdgeMaterial = (): LineBasicMaterial =>
  * drawn only when they lie behind the nearest solid surface written by the
  * depth-only pre-pass.
  */
-export const createHiddenEdgeMaterial = (): LineDashedMaterial =>
-  new LineDashedMaterial({
+export const createHiddenEdgeMaterial = (
+  dashSize = 3,
+  gapSize = 2,
+): LineDashedMaterial => {
+  if (!Number.isFinite(dashSize) || dashSize <= 0 || !Number.isFinite(gapSize) || gapSize <= 0) {
+    throw new RangeError("Hidden-edge dash and gap sizes must be positive");
+  }
+  return new LineDashedMaterial({
     color: 0x59616a,
-    dashSize: 3,
-    gapSize: 2,
+    dashSize,
+    gapSize,
     transparent: true,
     opacity: 0.82,
     depthTest: true,
     depthWrite: false,
     depthFunc: GreaterDepth,
   });
+};
 
 /** Writes nearest solid depth without adding any visible color. */
 export const createDepthOccluderMaterial = (): MeshBasicMaterial =>
