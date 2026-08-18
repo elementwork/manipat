@@ -128,12 +128,12 @@ export const startViewerServer = async (
   port: number,
 ): Promise<void> => {
   const runtimeRoot = path.resolve("packages/renderer-three/dist");
-  const threeRoot = path.resolve("node_modules/three");
+  const threeRoot = path.resolve("packages/renderer-three/node_modules/three");
   const html = renderViewerHtml(payload);
   const server = createServer((request, response) => {
     void (async () => {
       try {
-        const pathname = new URL(request.url ?? "/", `http://${host}:${port}`).pathname;
+        const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
         if (pathname === "/") {
           send(response, 200, "text/html; charset=utf-8", html);
           return;
