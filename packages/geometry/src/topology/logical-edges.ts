@@ -2,7 +2,6 @@ import {
   EPS,
   cross3,
   dot3,
-  normalize3,
   subtract3,
   type Segment3,
   type Vec3,
@@ -59,11 +58,23 @@ const triangleVertices = (
   return [a, b, c];
 };
 
+/**
+ * Manifold/CSG output can contain zero-area triangles at coincident boolean
+ * boundaries. They carry no face or crease information and must not make the
+ * projection pipeline fail while normalizing a zero-length cross product.
+ */
 const triangleNormal = (mesh: CanonicalMesh, triangleId: number): Vec3 => {
   const [ai, bi, ci] = triangleVertices(mesh, triangleId);
   const a = vertex(mesh, ai);
-  return normalize3(cross3(subtract3(vertex(mesh, bi), a), subtract3(vertex(mesh, ci), a)));
+  const raw = cross3(subtract3(vertex(mesh, bi), a), subtract3(vertex(mesh, ci), a));
+  const length = Math.hypot(raw[0], raw[1], raw[2]);
+  return length <= EPS.length
+    ? [0, 0, 0]
+    : [raw[0] / length, raw[1] / length, raw[2] / length];
 };
+
+const isDegenerateNormal = ([x, y, z]: Vec3): boolean =>
+  Math.hypot(x, y, z) <= EPS.length;
 
 const edgeKey = (a: number, b: number): string => a < b ? `${a}:${b}` : `${b}:${a}`;
 
@@ -112,8 +123,14 @@ export const extractLogicalTopology = (
     { length: mesh.triangleCount },
     (_, triangleId) => triangleNormal(mesh, triangleId),
   );
+  const validTriangleIds = Array.from({ length: mesh.triangleCount }, (_, triangleId) => triangleId)
+    .filter((triangleId) => {
+      const normal = triangleNormals[triangleId];
+      return normal !== undefined && !isDegenerateNormal(normal);
+    });
+
   const edgeUses = new Map<string, MeshEdgeUse[]>();
-  for (let triangleId = 0; triangleId < mesh.triangleCount; triangleId += 1) {
+  for (const triangleId of validTriangleIds) {
     const [a, b, c] = triangleVertices(mesh, triangleId);
     for (const [first, second] of [[a, b], [b, c], [c, a]] as const) {
       const key = edgeKey(first, second);
@@ -138,7 +155,7 @@ export const extractLogicalTopology = (
   }
 
   const triangleGroups = new Map<number, number[]>();
-  for (let triangleId = 0; triangleId < mesh.triangleCount; triangleId += 1) {
+  for (const triangleId of validTriangleIds) {
     const root = sets.find(triangleId);
     const group = triangleGroups.get(root) ?? [];
     group.push(triangleId);

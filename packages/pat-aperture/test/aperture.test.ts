@@ -26,6 +26,7 @@ describe("ApertureGenerator", () => {
       expect(validation.passed, `seed phase1-${index}`).toBe(true);
       expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
       expect(new Set(question.choices.map(({ svg }) => svg)).size).toBe(5);
+      expect(Number(question.metadata.pictorialSubdivisions ?? 0)).toBe(12);
       expect(Number(question.metadata.projectionComplexity ?? 0)).toBeGreaterThanOrEqual(
         band === 1 ? 4 : band === 2 ? 5 : 6,
       );

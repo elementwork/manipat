@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -34,4 +34,23 @@ describe("offline CLI", () => {
     const validation = await execFileAsync(process.execPath, [cli, "validate", first]);
     expect(JSON.parse(validation.stdout)).toMatchObject({ passed: true, questionCount: 6 });
   }, 60_000);
+
+  it("sanitizes imported question IDs used by inspect HTML and default filenames", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "manipat-cli-inspect-"));
+    const regenerated = await execFileAsync(process.execPath, [
+      cli, "regenerate", "--seed", "inspect-hardening", "--type", "angle", "--difficulty", "2",
+    ]);
+    const question = JSON.parse(regenerated.stdout) as { id: string } & Record<string, unknown>;
+    question.id = '../evil" onerror="alert(1)';
+    const input = path.join(directory, "question.jsonl");
+    await writeFile(input, `${JSON.stringify(question)}\n`, "utf8");
+
+    const inspected = await execFileAsync(process.execPath, [cli, "inspect", input], { cwd: directory });
+    const output = inspected.stdout.trim();
+    expect(path.dirname(output)).toBe(directory);
+    expect(path.basename(output)).toBe('_evil_onerror_alert_1_.html');
+    const html = await readFile(output, "utf8");
+    expect(html).toContain('&quot; onerror=&quot;alert(1)');
+    expect(html).not.toContain('alt="../evil" onerror="alert(1)');
+  });
 });

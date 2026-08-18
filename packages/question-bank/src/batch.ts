@@ -45,17 +45,64 @@ export interface BatchResult {
   readonly traces: readonly CandidateTrace[];
 }
 
-const difficultyFor = (request: DifficultyRequest, accepted: number): DifficultyBand => {
+const isDifficultyMix = (request: DifficultyRequest): request is DifficultyMix =>
+  typeof request !== "number" && "kind" in request;
+
+const difficultyFor = (request: Exclude<DifficultyRequest, DifficultyMix>, accepted: number): DifficultyBand => {
   if (typeof request === "number") return request;
-  if ("kind" in request) {
-    const weighted = (Object.entries(request.weights) as Array<[string, number]>).flatMap(
-      ([band, weight]) => Array.from({ length: weight }, () => Number(band) as DifficultyBand),
-    );
-    if (weighted.length === 0) throw new GenerationTargetError("Difficulty mix has no positive weights");
-    return weighted[accepted % weighted.length] ?? 3;
-  }
   const [minimum, maximum] = request;
   return (minimum + (accepted % (maximum - minimum + 1))) as DifficultyBand;
+};
+
+/**
+ * Convert arbitrary positive mix weights into exact integer quotas for this
+ * category using largest-remainder allocation. This prevents grouped generators
+ * (notably Cube Counting) from overshooting a target band by admitting an
+ * entire shared-figure group at once.
+ */
+const mixTargets = (
+  request: DifficultyMix,
+  requested: number,
+): Readonly<Record<string, number>> => {
+  const entries = (Object.entries(request.weights) as Array<[string, number]>)
+    .map(([band, weight]) => ({ band: Number(band) as DifficultyBand, weight }))
+    .filter(({ weight }) => Number.isFinite(weight) && weight > 0)
+    .sort((a, b) => a.band - b.band);
+  const totalWeight = entries.reduce((sum, { weight }) => sum + weight, 0);
+  if (entries.length === 0 || totalWeight <= 0) {
+    throw new GenerationTargetError("Difficulty mix has no positive weights");
+  }
+
+  const allocations = entries.map(({ band, weight }) => {
+    const exact = requested * weight / totalWeight;
+    const count = Math.floor(exact);
+    return { band, count, remainder: exact - count };
+  });
+  let remaining = requested - allocations.reduce((sum, { count }) => sum + count, 0);
+  const remainderOrder = [...allocations].sort((a, b) =>
+    b.remainder - a.remainder || a.band - b.band);
+  for (const allocation of remainderOrder) {
+    if (remaining <= 0) break;
+    allocation.count += 1;
+    remaining -= 1;
+  }
+  return Object.fromEntries(allocations.map(({ band, count }) => [String(band), count]));
+};
+
+const nextMixDifficulty = (
+  targets: Readonly<Record<string, number>>,
+  accepted: Readonly<Record<string, number>>,
+): DifficultyBand => {
+  const remaining = Object.entries(targets)
+    .map(([band, target]) => ({
+      band: Number(band) as DifficultyBand,
+      remaining: target - (accepted[band] ?? 0),
+    }))
+    .filter(({ remaining: count }) => count > 0)
+    .sort((a, b) => b.remaining - a.remaining || a.band - b.band);
+  const selected = remaining[0];
+  if (selected === undefined) throw new GenerationTargetError("Difficulty mix quota is already complete");
+  return selected.band;
 };
 
 export const generateBatch = async (
@@ -75,19 +122,32 @@ export const generateBatch = async (
   for (const [type, requested] of Object.entries(config.categories) as Array<[PatQuestionType, number]>) {
     let accepted = 0;
     let attempts = 0;
+    const categoryAcceptedByDifficulty: Record<string, number> = {};
+    const difficultyRequest = config.categoryDifficulty?.[type] ?? config.difficulty;
+    const categoryMixTargets = isDifficultyMix(difficultyRequest)
+      ? mixTargets(difficultyRequest, requested)
+      : undefined;
     const maximumAttempts = requested * (config.maxAttemptsPerQuestion ?? 20);
     while (accepted < requested && attempts < maximumAttempts) {
       const candidateSeed = `${config.seed}:${type}:${attempts}`;
-      const difficultyRequest = config.categoryDifficulty?.[type] ?? config.difficulty;
-      const difficulty = difficultyFor(difficultyRequest, accepted);
+      const difficulty = categoryMixTargets === undefined
+        ? difficultyFor(difficultyRequest as Exclude<DifficultyRequest, DifficultyMix>, accepted)
+        : nextMixDifficulty(categoryMixTargets, categoryAcceptedByDifficulty);
       const start = performance.now();
       const acceptedBefore = accepted;
       attempts += 1;
       try {
-        // Cube Counting questions are intentionally generated in groups of up
-        // to three sharing one figure. Preserve that DAT grouping for fixed,
-        // ranged, and mixed difficulty requests alike.
-        const maximumGroupCount = type === "cube-counting" ? requested - accepted : 1;
+        const remainingTotal = requested - accepted;
+        const remainingForDifficulty = categoryMixTargets === undefined
+          ? remainingTotal
+          : (categoryMixTargets[String(difficulty)] ?? 0)
+            - (categoryAcceptedByDifficulty[String(difficulty)] ?? 0);
+        // Cube Counting questions intentionally share one figure in groups of up
+        // to three. Cap a group at the selected band's remaining quota so the
+        // shared-figure optimization cannot distort the requested mix.
+        const maximumGroupCount = type === "cube-counting"
+          ? Math.min(remainingTotal, Math.max(1, remainingForDifficulty))
+          : 1;
         const group = await engine.generateCandidateGroup(
           { type, seed: candidateSeed, difficulty },
           maximumGroupCount,
@@ -104,10 +164,14 @@ export const generateBatch = async (
           }
           questions.push(question);
           accepted += 1;
+          const bandKey = String(question.difficulty.band);
+          categoryAcceptedByDifficulty[bandKey] = (categoryAcceptedByDifficulty[bandKey] ?? 0) + 1;
           acceptedByCategory[type] = (acceptedByCategory[type] ?? 0) + 1;
-          acceptedByDifficulty[String(question.difficulty.band)] =
-            (acceptedByDifficulty[String(question.difficulty.band)] ?? 0) + 1;
+          acceptedByDifficulty[bandKey] = (acceptedByDifficulty[bandKey] ?? 0) + 1;
           if (accepted >= requested) break;
+          if (categoryMixTargets !== undefined
+            && (categoryAcceptedByDifficulty[String(difficulty)] ?? 0)
+              >= (categoryMixTargets[String(difficulty)] ?? 0)) break;
         }
         traces.push({
           candidateId: group[0]?.id ?? candidateSeed,

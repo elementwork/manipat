@@ -79,12 +79,52 @@ const rotateForView = ([x, y, z]: Vec3, quarterTurns: 0 | 1 | 2 | 3): Vec3 => {
   }
 };
 
-const project = ([x, y, z]: Vec3): Vec2 => [(x - y) * Math.sqrt(3) / 2, (x + y) * 0.5 - z];
+/** The projection's null/view axis is [1,1,1], so depth is x+y+z. */
+const project = ([x, y, z]: Vec3): Vec2 => [
+  (x - y) * Math.sqrt(3) / 2,
+  (x + y) * 0.5 - z,
+];
+
+const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const negate = ([x, y, z]: Vec3): Vec3 => [-x, -y, -z];
+const cross = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+const center3 = (vertices: readonly Vec3[]): Vec3 => [
+  vertices.reduce((sum, [x]) => sum + x, 0) / vertices.length,
+  vertices.reduce((sum, [, y]) => sum + y, 0) / vertices.length,
+  vertices.reduce((sum, [, , z]) => sum + z, 0) / vertices.length,
+];
+
+const faceNormal = (vertices: readonly Vec3[]): Vec3 | undefined => {
+  const a = vertices[0];
+  const b = vertices[1];
+  const c = vertices[2];
+  if (a === undefined || b === undefined || c === undefined) return undefined;
+  return cross(subtract(b, a), subtract(c, a));
+};
+
+const outwardFaceNormal = (
+  vertices: readonly Vec3[],
+  solidCenter: Vec3,
+): Vec3 | undefined => {
+  const normal = faceNormal(vertices);
+  if (normal === undefined) return undefined;
+  const faceCenter = center3(vertices);
+  return dot(normal, subtract(faceCenter, solidCenter)) >= 0 ? normal : negate(normal);
+};
+
+// Camera sits in the +X,+Y,+Z octant looking toward the origin.
+const CAMERA_VECTOR: Vec3 = [1, 1, 1];
 
 /**
- * Render all closed faces from far to near. White-filled near faces naturally
- * occlude rear faces and their internal edges, which gives the answer choices
- * the visual mass of a closed 3D solid instead of a few disconnected planes.
+ * Render only camera-facing opaque faces, then paint them from far to near.
+ * Face orientation is derived from the solid centroid rather than vertex winding
+ * because legacy and generated prism families do not all use the same winding.
  */
 export const renderFoldedChoice = (
   polyhedron: LogicalPolyhedron,
@@ -97,17 +137,20 @@ export const renderFoldedChoice = (
   const quarterTurns = choice.viewQuarterTurns ?? 0;
   const transformed = sourceVertices.map((vertex) =>
     rotateForView(transformPoint(vertex, choice.chirality), quarterTurns));
+  const solidCenter = center3(transformed);
 
-  const faces = polyhedron.faces.flatMap((face) => {
+  const visibleFaces = polyhedron.faces.flatMap((face) => {
     const vertices = face.vertexIds.map((id): Vec3 => transformed[id] ?? [0, 0, 0]);
     if (vertices.length < 3) return [];
+    const normal = outwardFaceNormal(vertices, solidCenter);
+    if (normal === undefined || dot(normal, CAMERA_VECTOR) <= 1e-9) return [];
     const polygon = vertices.map(project);
-    const depth = vertices.reduce((sum, [x, y, z]) => sum + x + y - z, 0) / vertices.length;
+    const depth = vertices.reduce((sum, [x, y, z]) => sum + x + y + z, 0) / vertices.length;
     return [{ face, polygon, depth }];
-  }).sort((a, b) => b.depth - a.depth);
+  }).sort((a, b) => a.depth - b.depth);
 
-  const points = faces.flatMap(({ polygon }) => polygon);
-  if (points.length === 0) throw new Error("Form-development choice has no faces");
+  if (visibleFaces.length === 0) throw new Error("Form-development choice has no visible faces");
+  const points = visibleFaces.flatMap(({ polygon }) => polygon);
   const minX = Math.min(...points.map(([x]) => x));
   const maxX = Math.max(...points.map(([x]) => x));
   const minY = Math.min(...points.map(([, y]) => y));
@@ -117,8 +160,8 @@ export const renderFoldedChoice = (
   return svgDocument({
     viewBox: [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2],
     title,
-    description: "Closed candidate folded solid rendered with painter occlusion",
-    children: faces.flatMap(({ face, polygon }) => [
+    description: "Closed folded solid rendered from camera-facing opaque faces",
+    children: visibleFaces.flatMap(({ face, polygon }) => [
       svgPolygon(polygon, {
         fill: "white",
         stroke: "black",

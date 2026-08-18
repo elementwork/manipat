@@ -143,6 +143,12 @@ const distractorPatterns = (
   candidates.push({ holes: correct.map(([x, y]): Vec2 => [4 - y, 4 - x]), mutation: "wrong-anti-diagonal" });
   for (let index = 0; index < correct.length; index += 1) {
     candidates.push({ holes: correct.filter((_, candidateIndex) => candidateIndex !== index), mutation: "missing-reflection" });
+    for (let second = index + 1; second < correct.length; second += 1) {
+      candidates.push({
+        holes: correct.filter((_, candidateIndex) => candidateIndex !== index && candidateIndex !== second),
+        mutation: "missing-two-reflections",
+      });
+    }
   }
   for (const point of available) {
     candidates.push({ holes: [...correct, point], mutation: "extra-reflection" });
@@ -157,17 +163,17 @@ const distractorPatterns = (
   }
 
   const unique = new Map<string, { holes: readonly Vec2[]; mutation: string }>();
+  const correctFingerprint = patternFingerprint(correct);
   for (const candidate of candidates) {
     const holes = [...new Map(candidate.holes.map((point) => [pointKey(point), point])).values()]
       .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
     const fingerprint = patternFingerprint(holes);
-    if (fingerprint !== patternFingerprint(correct)) unique.set(fingerprint, { holes, mutation: candidate.mutation });
+    if (fingerprint !== correctFingerprint) unique.set(fingerprint, { holes, mutation: candidate.mutation });
   }
 
   const pool = random.fork("distractor-order").shuffle([...unique.values()]);
-  const minimumCorrectDistance = difficulty >= 4 ? 1 : 2;
   const selected: Array<{ holes: readonly Vec2[]; mutation: string }> = [];
-  while (selected.length < 4) {
+  const selectBest = (minimumCorrectDistance: number): boolean => {
     let best: { holes: readonly Vec2[]; mutation: string } | undefined;
     let bestScore = -1;
     for (const candidate of pool) {
@@ -183,14 +189,22 @@ const distractorPatterns = (
         best = candidate;
       }
     }
-    if (best === undefined) break;
+    if (best === undefined) return false;
     selected.push(best);
+    return true;
+  };
+
+  // The validator intentionally requires at least two meaningfully different
+  // alternatives. Satisfy that invariant by construction rather than hoping a
+  // diversity-maximizing greedy pass happens to choose two distance-2 options.
+  while (selected.length < 2 && selectBest(2)) {
+    // Continue until two robust distractors have been admitted.
   }
-  if (selected.length < 4) {
-    for (const candidate of pool) {
-      if (selected.length === 4) break;
-      if (!selected.includes(candidate)) selected.push(candidate);
-    }
+  if (selected.length < 2) throw new Error("Could not generate two robust paper-folding distractors");
+
+  const minimumCorrectDistance = difficulty >= 4 ? 1 : 2;
+  while (selected.length < 4 && selectBest(minimumCorrectDistance)) {
+    // Fill the remaining choices at the requested difficulty similarity.
   }
   if (selected.length < 4) throw new Error("Could not generate four diverse paper-folding distractors");
   return selected;

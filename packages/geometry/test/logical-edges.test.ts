@@ -4,6 +4,8 @@ import {
   createManifoldKernel,
   createOrthographicView,
   extractLogicalTopology,
+  mergeCollinearSegments,
+  type CanonicalMesh,
 } from "../src/index.js";
 
 describe("logical topology and TFE projection", () => {
@@ -16,6 +18,29 @@ describe("logical topology and TFE projection", () => {
     expect(topology.edges).toHaveLength(12);
   });
 
+  it("ignores zero-area triangles emitted at CSG coincidence boundaries", () => {
+    const mesh: CanonicalMesh = {
+      positions: new Float32Array([
+        0, 0, 0,
+        1, 0, 0,
+        0, 1, 0,
+        1, 1, 0,
+      ]),
+      indices: new Uint32Array([
+        0, 1, 2,
+        0, 0, 3,
+      ]),
+      vertexCount: 4,
+      triangleCount: 2,
+      bounds: { min: [0, 0, 0], max: [1, 1, 0] },
+    };
+    const topology = extractLogicalTopology(mesh);
+    expect(topology.triangleNormals[1]).toEqual([0, 0, 0]);
+    expect(topology.faces).toHaveLength(1);
+    expect(topology.faces[0]?.triangleIds).toEqual([0]);
+    expect(topology.edges).toHaveLength(3);
+  });
+
   it("projects a cube to four visible lines with solid-over-hidden priority", async () => {
     const kernel = await createManifoldKernel();
     using cube = kernel.cube([10, 20, 30], true);
@@ -23,5 +48,40 @@ describe("logical topology and TFE projection", () => {
     expect(view.visible).toHaveLength(4);
     expect(view.hidden).toHaveLength(0);
     expect(view.bounds).toEqual({ min: [-5, -15], max: [5, 15] });
+  });
+
+  it("suppresses 12-sided cylinder facet clutter while keeping the true silhouette", async () => {
+    const kernel = await createManifoldKernel();
+    using cylinder = kernel.cylinder(20, 5, 5, 12, true);
+    const view = createOrthographicView(kernel.getMesh(cylinder), FRONT_FRAME, {
+      subdivisions: 6,
+      visibilityRule: "midpoint",
+    });
+    expect(view.visible.length).toBeGreaterThanOrEqual(4);
+    expect(view.visible.length).toBeLessThanOrEqual(6);
+    expect(view.hidden).toHaveLength(0);
+  });
+
+  it("merges large connected fragment chains without pairwise rescanning", () => {
+    const fragments = Array.from({ length: 1_200 }, (_, index) => ({
+      a: [index, 0] as const,
+      b: [index + 1, 0] as const,
+    }));
+    expect(mergeCollinearSegments(fragments)).toEqual([
+      { a: [0, 0], b: [1_200, 0] },
+    ]);
+  });
+
+  it("keeps disjoint collinear runs and perpendicular junctions separate", () => {
+    expect(mergeCollinearSegments([
+      { a: [0, 0], b: [1, 0] },
+      { a: [1, 0], b: [2, 0] },
+      { a: [1, 0], b: [1, 1] },
+      { a: [3, 0], b: [4, 0] },
+    ])).toEqual([
+      { a: [0, 0], b: [2, 0] },
+      { a: [1, 0], b: [1, 1] },
+      { a: [3, 0], b: [4, 0] },
+    ]);
   });
 });

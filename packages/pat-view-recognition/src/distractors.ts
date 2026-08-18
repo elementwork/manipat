@@ -10,148 +10,137 @@ export interface TfeDistractor {
   readonly mutation: TfeDistractorMutation;
 }
 
-const length = ({ a, b }: Segment2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
 const midpoint = ({ a, b }: Segment2): Vec2 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
-const shifted = ({ a, b }: Segment2, amount: number): Segment2 => {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const magnitude = Math.hypot(dx, dy);
-  const offset: Vec2 = magnitude <= EPS.length
-    ? [amount, 0]
-    : [-dy / magnitude * amount, dx / magnitude * amount];
-  return {
-    a: [a[0] + offset[0], a[1] + offset[1]],
-    b: [b[0] + offset[0], b[1] + offset[1]],
-  };
-};
-
-const shortened = ({ a, b }: Segment2): Segment2 => ({
-  a: [a[0] + (b[0] - a[0]) * 0.24, a[1] + (b[1] - a[1]) * 0.24],
-  b: [b[0] - (b[0] - a[0]) * 0.24, b[1] - (b[1] - a[1]) * 0.24],
-});
-
-const transformReferenceToTarget = (
-  reference: OrthographicView,
-  target: OrthographicView,
-): OrthographicView => {
-  const sourceWidth = Math.max(EPS.length, reference.bounds.max[0] - reference.bounds.min[0]);
-  const sourceHeight = Math.max(EPS.length, reference.bounds.max[1] - reference.bounds.min[1]);
-  const targetWidth = Math.max(EPS.length, target.bounds.max[0] - target.bounds.min[0]);
-  const targetHeight = Math.max(EPS.length, target.bounds.max[1] - target.bounds.min[1]);
-  const sourceCenter: Vec2 = [
-    (reference.bounds.min[0] + reference.bounds.max[0]) / 2,
-    (reference.bounds.min[1] + reference.bounds.max[1]) / 2,
-  ];
-  const targetCenter: Vec2 = [
-    (target.bounds.min[0] + target.bounds.max[0]) / 2,
-    (target.bounds.min[1] + target.bounds.max[1]) / 2,
-  ];
-  const mapPoint = ([x, y]: Vec2): Vec2 => [
-    targetCenter[0] + (x - sourceCenter[0]) * targetWidth / sourceWidth,
-    targetCenter[1] + (y - sourceCenter[1]) * targetHeight / sourceHeight,
-  ];
-  const mapSegment = ({ a, b }: Segment2): Segment2 => ({ a: mapPoint(a), b: mapPoint(b) });
-  return canonicalizeOrthographicView(
-    target.frame,
-    reference.visible.map(mapSegment),
-    reference.hidden.map(mapSegment),
+const envelopeTouchCount = (segment: Segment2, view: OrthographicView): number => {
+  const span = Math.max(
+    view.bounds.max[0] - view.bounds.min[0],
+    view.bounds.max[1] - view.bounds.min[1],
+    EPS.length,
   );
+  const tolerance = span * 0.025;
+  return [segment.a, segment.b].reduce((count, [x, y]) => count
+    + (Math.abs(x - view.bounds.min[0]) <= tolerance ? 1 : 0)
+    + (Math.abs(x - view.bounds.max[0]) <= tolerance ? 1 : 0)
+    + (Math.abs(y - view.bounds.min[1]) <= tolerance ? 1 : 0)
+    + (Math.abs(y - view.bounds.max[1]) <= tolerance ? 1 : 0), 0);
 };
 
-const centralVisibleIndex = (view: OrthographicView): number => {
+const rankedFeatureIndices = (
+  segments: readonly Segment2[],
+  view: OrthographicView,
+): readonly number[] => {
   const center: Vec2 = [
     (view.bounds.min[0] + view.bounds.max[0]) / 2,
     (view.bounds.min[1] + view.bounds.max[1]) / 2,
   ];
-  let bestIndex = 0;
-  let bestScore = Number.POSITIVE_INFINITY;
-  view.visible.forEach((segment, index) => {
+  return segments.map((segment, index) => {
     const [x, y] = midpoint(segment);
-    const centerDistance = Math.hypot(x - center[0], y - center[1]);
-    const score = centerDistance + length(segment) * 0.05;
-    if (score < bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
-  });
-  return bestIndex;
+    return {
+      index,
+      score: envelopeTouchCount(segment, view) * 100 + Math.hypot(x - center[0], y - center[1]),
+    };
+  }).sort((a, b) => a.score - b.score).map(({ index }) => index);
 };
 
+const mapSegment = (
+  segment: Segment2,
+  mapper: (point: Vec2) => Vec2,
+): Segment2 => ({ a: mapper(segment.a), b: mapper(segment.b) });
+
 /**
- * Build choices from competing structural interpretations first, then from
- * local line mistakes. Using another real orthographic projection as the basis
- * for a distractor produces a coherent wrong answer; arbitrary edits to one
- * long boundary line tend to create near-duplicate or visibly artificial SVGs.
+ * Generate complete, coherent alternative orthographic drawings. Distractors
+ * deliberately avoid local line surgery (shortening, free-floating additions,
+ * or shifting one connected segment), because those operations can create open
+ * contours and dangling extensions that do not resemble real DAT choices.
  */
 export const generateTfeDistractors = (
   correct: OrthographicView,
   referenceViews: readonly OrthographicView[] = [],
 ): readonly TfeDistractor[] => {
+  // Kept for API compatibility. Other principal views are evidence for solving
+  // the question, not geometry to stretch into the missing-view answer box.
+  void referenceViews;
+
   const visible = [...correct.visible];
   const hidden = [...correct.hidden];
   if (visible.length === 0) throw new Error("TFE view has no visible line to mutate");
 
-  const span = Math.max(
-    correct.bounds.max[0] - correct.bounds.min[0],
-    correct.bounds.max[1] - correct.bounds.min[1],
-  );
   const center: Vec2 = [
     (correct.bounds.min[0] + correct.bounds.max[0]) / 2,
     (correct.bounds.min[1] + correct.bounds.max[1]) / 2,
   ];
-  const featureIndex = centralVisibleIndex(correct);
-  const target = visible[featureIndex] ?? visible[0]!;
   const results: TfeDistractor[] = [];
   const fingerprints = new Set([correct.fingerprint]);
-  const addView = (mutation: TfeDistractorMutation, view: OrthographicView): void => {
-    if (fingerprints.has(view.fingerprint)) return;
-    fingerprints.add(view.fingerprint);
-    results.push({ view, mutation });
-  };
+
   const add = (
     mutation: TfeDistractorMutation,
     candidateVisible: readonly Segment2[],
     candidateHidden: readonly Segment2[],
-  ): void => addView(
-    mutation,
-    canonicalizeOrthographicView(correct.frame, candidateVisible, candidateHidden),
-  );
-
-  for (const reference of referenceViews) {
-    addView("wrong-projection", transformReferenceToTarget(reference, correct));
-  }
-
-  add(
-    "mirror-view",
-    visible.map(({ a, b }) => ({ a: [2 * center[0] - a[0], a[1]], b: [2 * center[0] - b[0], b[1]] })),
-    hidden.map(({ a, b }) => ({ a: [2 * center[0] - a[0], a[1]], b: [2 * center[0] - b[0], b[1]] })),
-  );
-
-  add(
-    "visibility-flip",
-    visible.filter((_, index) => index !== featureIndex),
-    [...hidden, target],
-  );
-
-  add("move-line", visible.map((line, index) =>
-    index === featureIndex ? shifted(line, Math.max(2.5, span * 0.16)) : line), hidden);
-
-  add("shorten-line", visible.map((line, index) =>
-    index === featureIndex ? shortened(line) : line), hidden);
-
-  if (visible.length > 2) {
-    const deleteIndex = (featureIndex + 1) % visible.length;
-    add("delete-edge", visible.filter((_, index) => index !== deleteIndex), hidden);
-  }
-
-  const edgeLen = Math.max(3, span * 0.28);
-  const newEdge: Segment2 = {
-    a: [center[0] - edgeLen / 2, center[1] + span * 0.12],
-    b: [center[0] + edgeLen / 2, center[1] + span * 0.12],
+  ): void => {
+    const view = canonicalizeOrthographicView(correct.frame, candidateVisible, candidateHidden);
+    if (fingerprints.has(view.fingerprint)) return;
+    fingerprints.add(view.fingerprint);
+    results.push({ view, mutation });
   };
-  add("add-edge", [...visible, newEdge], hidden);
 
-  if (results.length < 3) throw new Error("Could not generate three unique TFE distractors");
+  const transformWholeView = (
+    mutation: TfeDistractorMutation,
+    mapper: (point: Vec2) => Vec2,
+  ): void => add(
+    mutation,
+    visible.map((segment) => mapSegment(segment, mapper)),
+    hidden.map((segment) => mapSegment(segment, mapper)),
+  );
+
+  // Whole-view mirror: every connected endpoint moves together, so the result
+  // remains a closed orthographic drawing even though the interpretation is wrong.
+  transformWholeView("mirror-view", ([x, y]) => [2 * center[0] - x, y]);
+
+  // Toggle a real hidden feature to visible, or a central visible feature to
+  // hidden. Geometry and endpoints stay unchanged; only the interpretation of
+  // the edge changes, matching the visual grammar of golden TFE distractors.
+  const hiddenIndices = rankedFeatureIndices(hidden, correct);
+  const visibleIndices = rankedFeatureIndices(visible, correct);
+  for (const index of hiddenIndices.slice(0, 2)) {
+    const segment = hidden[index];
+    if (segment === undefined) continue;
+    add(
+      "visibility-flip",
+      [...visible, segment],
+      hidden.filter((_, candidateIndex) => candidateIndex !== index),
+    );
+  }
+  if (hiddenIndices.length === 0) {
+    for (const index of visibleIndices.slice(0, 2)) {
+      const segment = visible[index];
+      if (segment === undefined) continue;
+      add(
+        "visibility-flip",
+        visible.filter((_, candidateIndex) => candidateIndex !== index),
+        [...hidden, segment],
+      );
+    }
+  }
+
+  // Whole-view dimensional alternatives preserve every junction and closed
+  // outline while creating plausible wrong width/height correspondences.
+  transformWholeView("dimension-change", ([x, y]) => [
+    center[0] + (x - center[0]) * 0.86,
+    y,
+  ]);
+  transformWholeView("dimension-change", ([x, y]) => [
+    x,
+    center[1] + (y - center[1]) * 0.86,
+  ]);
+
+  // A second coherent mirror is useful for highly symmetric source views where
+  // the left/right mirror collapses to the correct fingerprint.
+  transformWholeView("mirror-view", ([x, y]) => [x, 2 * center[1] - y]);
+  transformWholeView("mirror-view", ([x, y]) => [2 * center[0] - x, 2 * center[1] - y]);
+
+  if (results.length < 3) {
+    throw new Error("Could not generate three unique closed TFE distractors");
+  }
   return results.slice(0, 3);
 };

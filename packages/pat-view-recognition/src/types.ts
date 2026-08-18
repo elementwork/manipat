@@ -15,6 +15,7 @@ export type TfeDistractorMutation =
   | "shorten-line"
   | "visibility-flip"
   | "mirror-view"
+  | "dimension-change"
   | "add-edge"
   | "delete-edge";
 

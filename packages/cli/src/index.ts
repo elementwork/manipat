@@ -270,7 +270,16 @@ const validateCommand = async (parsed: ParsedArguments): Promise<void> => {
 };
 
 const escapeHtml = (value: string): string => value
-  .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#39;");
+
+const safeFilenameSegment = (value: string): string => {
+  const sanitized = value.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^\.+/, "").slice(0, 160);
+  return sanitized.length === 0 ? "question" : sanitized;
+};
 
 const inspectCommand = async (parsed: ParsedArguments): Promise<void> => {
   const target = parsed.positionals[1];
@@ -289,7 +298,7 @@ const inspectCommand = async (parsed: ParsedArguments): Promise<void> => {
   const visuals = extractQuestionAssets(question).map(({ content, filename }) =>
     `<figure><img alt="${escapeHtml(filename)}" src="data:image/svg+xml;base64,${Buffer.from(content).toString("base64")}"><figcaption>${escapeHtml(filename)}</figcaption></figure>`).join("");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(question.id)}</title><style>body{font-family:system-ui;max-width:1100px;margin:2rem auto}.assets{display:flex;flex-wrap:wrap;gap:1rem}figure{margin:0}img{width:220px;height:220px;object-fit:contain;border:1px solid #ddd}pre{white-space:pre-wrap;background:#f4f4f4;padding:1rem}</style></head><body><h1>${escapeHtml(question.id)}</h1><p>Answer: ${question.correctChoiceIndex + 1}; validation: ${question.validation.passed ? "PASS" : "FAIL"}</p><section class="assets">${visuals}</section><h2>Recipe, metadata, fingerprints, difficulty, and explanation</h2><pre>${escapeHtml(JSON.stringify(question, null, 2))}</pre></body></html>`;
-  const output = path.resolve(flag(parsed, "output") ?? `${question.id}.html`);
+  const output = path.resolve(flag(parsed, "output") ?? `${safeFilenameSegment(question.id)}.html`);
   await writeFile(output, html, "utf8");
   process.stdout.write(`${output}\n`);
 };

@@ -44,6 +44,14 @@ const shear = (
   return mapSilhouette(silhouette, ([x, y]): Vec2 => [x + (y - cy) * amount, y]);
 };
 
+const withOuterPolygon = (
+  silhouette: CanonicalSection2D,
+  polygon: readonly Vec2[],
+): CanonicalSection2D => canonicalizeSilhouette({
+  polygons: [polygon, ...silhouette.polygons.slice(1)],
+  bounds: silhouette.bounds,
+});
+
 const longestEdgeIndex = (polygon: readonly Vec2[]): number => {
   let best = 0;
   let bestLength = 0;
@@ -82,7 +90,7 @@ const addNotch = (silhouette: CanonicalSection2D, depthFactor: number): Canonica
   ];
   const changed = [...polygon];
   changed.splice(index + 1, 0, notch);
-  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
+  return withOuterPolygon(silhouette, changed);
 };
 
 const shiftDistinctiveVertex = (
@@ -104,7 +112,7 @@ const shiftDistinctiveVertex = (
   const width = silhouette.bounds.max[0] - silhouette.bounds.min[0];
   const changed = polygon.map((point, index): Vec2 =>
     index === chosen ? [point[0] + width * fraction, point[1]] : point);
-  return canonicalizeSilhouette({ polygons: [changed], bounds: silhouette.bounds });
+  return withOuterPolygon(silhouette, changed);
 };
 
 const pointDistance = (a: Vec2, b: Vec2): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -131,12 +139,59 @@ const meaningfullyDifferent = (first: CanonicalSection2D, second: CanonicalSecti
   const secondHeight = second.bounds.max[1] - second.bounds.min[1];
   const widthDifference = Math.abs(secondWidth - firstWidth) / Math.max(firstWidth, secondWidth, EPS.length);
   const heightDifference = Math.abs(secondHeight - firstHeight) / Math.max(firstHeight, secondHeight, EPS.length);
-  const firstVertices = first.polygons[0]?.length ?? 0;
-  const secondVertices = second.polygons[0]?.length ?? 0;
+  const firstVertices = first.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+  const secondVertices = second.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
   return widthDifference >= 0.05
     || heightDifference >= 0.05
+    || first.polygons.length !== second.polygons.length
     || firstVertices !== secondVertices
     || contourDistance(first, second) >= 0.045;
+};
+
+const admitCandidates = (
+  candidates: readonly Candidate[],
+  correct: CanonicalSection2D,
+  validPrincipalProjections: readonly CanonicalSection2D[],
+  fingerprints: Set<string>,
+): ApertureDistractor[] => {
+  const eligible: ApertureDistractor[] = [];
+  for (const candidate of candidates) {
+    const fingerprint = silhouetteFingerprint(candidate.silhouette);
+    if (fingerprints.has(fingerprint)) continue;
+    if (validPrincipalProjections.some((projection) => apertureContains(candidate.silhouette, projection))) continue;
+    if (!meaningfullyDifferent(correct, candidate.silhouette)) continue;
+    fingerprints.add(fingerprint);
+    eligible.push({ ...candidate, fingerprint });
+  }
+  return eligible;
+};
+
+const extendSelection = (
+  selected: ApertureDistractor[],
+  eligible: readonly ApertureDistractor[],
+  correct: CanonicalSection2D,
+  count: number,
+): void => {
+  while (selected.length < count) {
+    let best: ApertureDistractor | undefined;
+    let bestScore = -1;
+    for (const candidate of eligible) {
+      if (selected.includes(candidate)) continue;
+      if (selected.some(({ silhouette }) => !meaningfullyDifferent(silhouette, candidate.silhouette))) continue;
+      const score = selected.length === 0
+        ? contourDistance(correct, candidate.silhouette)
+        : Math.min(
+          contourDistance(correct, candidate.silhouette),
+          ...selected.map(({ silhouette }) => contourDistance(silhouette, candidate.silhouette)),
+        );
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    if (best === undefined) return;
+    selected.push(best);
+  }
 };
 
 /** Produce coherent wrong openings and choose a pairwise-separated A–E set. */
@@ -145,11 +200,11 @@ export const generateApertureDistractors = (
   validPrincipalProjections: readonly CanonicalSection2D[] = [correct],
   count = 4,
 ): readonly ApertureDistractor[] => {
-  const candidates: Candidate[] = [];
+  const primary: Candidate[] = [];
 
   for (const [index, projection] of validPrincipalProjections.entries()) {
     if (silhouetteFingerprint(projection) === silhouetteFingerprint(correct)) continue;
-    candidates.push(
+    primary.push(
       {
         silhouette: scaleAroundCenter(projection, 0.86, 0.96),
         reason: { type: "wrong-projection", details: { sourceProjection: index, mutation: "too-small-width" } },
@@ -161,7 +216,7 @@ export const generateApertureDistractors = (
     );
   }
 
-  candidates.push(
+  primary.push(
     {
       silhouette: scaleAroundCenter(correct, 0.84, 1),
       reason: { type: "too-narrow", details: { axis: "x", factor: 0.84 } },
@@ -192,38 +247,30 @@ export const generateApertureDistractors = (
     },
   );
 
-  const correctFingerprint = silhouetteFingerprint(correct);
-  const fingerprints = new Set([correctFingerprint]);
-  const eligible: ApertureDistractor[] = [];
-  for (const candidate of candidates) {
-    const fingerprint = silhouetteFingerprint(candidate.silhouette);
-    if (fingerprints.has(fingerprint)) continue;
-    if (validPrincipalProjections.some((projection) => apertureContains(candidate.silhouette, projection))) continue;
-    if (!meaningfullyDifferent(correct, candidate.silhouette)) continue;
-    fingerprints.add(fingerprint);
-    eligible.push({ ...candidate, fingerprint });
-  }
+  const fallback: Candidate[] = ([
+    [0.80, 1.00],
+    [1.00, 0.80],
+    [0.84, 0.91],
+    [0.92, 0.82],
+    [0.86, 0.86],
+    [0.76, 0.94],
+    [0.94, 0.76],
+  ] as const).map(([sx, sy]) => ({
+    silhouette: scaleAroundCenter(correct, sx, sy),
+    reason: {
+      type: "too-narrow" as const,
+      details: { axis: sx === 1 ? "y" : sy === 1 ? "x" : "xy", factorX: sx, factorY: sy },
+    },
+  }));
 
+  const fingerprints = new Set([silhouetteFingerprint(correct)]);
   const selected: ApertureDistractor[] = [];
-  while (selected.length < count) {
-    let best: ApertureDistractor | undefined;
-    let bestScore = -1;
-    for (const candidate of eligible) {
-      if (selected.includes(candidate)) continue;
-      if (selected.some(({ silhouette }) => !meaningfullyDifferent(silhouette, candidate.silhouette))) continue;
-      const score = selected.length === 0
-        ? contourDistance(correct, candidate.silhouette)
-        : Math.min(
-          contourDistance(correct, candidate.silhouette),
-          ...selected.map(({ silhouette }) => contourDistance(silhouette, candidate.silhouette)),
-        );
-      if (score > bestScore) {
-        best = candidate;
-        bestScore = score;
-      }
-    }
-    if (best === undefined) break;
-    selected.push(best);
+  const primaryEligible = admitCandidates(primary, correct, validPrincipalProjections, fingerprints);
+  extendSelection(selected, primaryEligible, correct, count);
+
+  if (selected.length < count) {
+    const fallbackEligible = admitCandidates(fallback, correct, validPrincipalProjections, fingerprints);
+    extendSelection(selected, [...primaryEligible, ...fallbackEligible], correct, count);
   }
 
   if (selected.length < count) {

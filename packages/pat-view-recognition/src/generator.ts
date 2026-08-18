@@ -33,6 +33,7 @@ const VIEW_FRAMES: Readonly<Record<TfeViewName, ProjectionFrame>> = {
   end: RIGHT_END_FRAME,
 };
 const VIEW_NAMES = ["front", "top", "end"] as const;
+const TFE_SUBDIVISIONS = 6;
 const information = (view: OrthographicView): number => view.visible.length + view.hidden.length;
 
 const templatePoolFor = (difficulty: 1 | 2 | 3 | 4 | 5) => {
@@ -82,7 +83,10 @@ export class TfeGenerator {
     const mesh = this.#kernel.getMesh(normalized);
     const views = Object.fromEntries(VIEW_NAMES.map((name) => [
       name,
-      createOrthographicView(mesh, VIEW_FRAMES[name]),
+      createOrthographicView(mesh, VIEW_FRAMES[name], {
+        subdivisions: TFE_SUBDIVISIONS,
+        visibilityRule: "midpoint",
+      }),
     ])) as Record<TfeViewName, OrthographicView>;
     const minimumSegments = minimumInformationFor(difficulty);
     const eligibleMissingViews = VIEW_NAMES.filter((name) => information(views[name]) >= minimumSegments);
@@ -175,6 +179,8 @@ export class TfeGenerator {
         semanticFeatureCount,
         targetInformation: information(correct),
         totalProjectionInformation: totalInformation,
+        projectionSubdivisions: TFE_SUBDIVISIONS,
+        distractorModel: "missing-view-semantic-v3",
       },
     };
     const validation = validateTfeQuestion(base);

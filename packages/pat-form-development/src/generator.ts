@@ -8,7 +8,7 @@ import {
   type Vec3,
 } from "@manipat/core";
 import { buildFaceAdjacency } from "./adjacency.js";
-import { createNet } from "./nets.js";
+import { createNetWithStyle } from "./nets.js";
 import { createHousePrism, createProfilePrism, createTrapezoidalPrism } from "./polyhedra.js";
 import { renderFoldedChoice, renderNet } from "./render.js";
 import type {
@@ -71,16 +71,18 @@ const createClippedRoofPrism = (random: RandomSource): LogicalPolyhedron => {
   const halfW = width / 2;
   const halfH = height / 2;
   const lowerClip = dimension(random.fork("lower-clip").float(0.16, 0.28));
-  const roofShoulder = dimension(random.fork("roof-shoulder").float(0.28, 0.42)) * width;
   const peakX = dimension(random.fork("peak-x").float(-0.18, 0.16)) * width;
+  // Keep this profile convex. The previous inset roof shoulders created two
+  // re-entrant corners; those produced a valid concave prism but no clean
+  // non-overlapping one-piece strip unfolding for some continuous parameters.
+  // Six irregular profile edges still yield an 8-face hard PAT solid while
+  // preserving the clipped base, asymmetric peak, and sloped roof grammar.
   const profile: readonly Vec2[] = [
     [-halfW + lowerClip, -halfH],
     [halfW - lowerClip * 0.8, -halfH],
     [halfW, -halfH + lowerClip * 0.8],
     [halfW, halfH * 0.28],
-    [peakX + roofShoulder, halfH * 0.28],
     [peakX, halfH],
-    [peakX - roofShoulder * 0.82, halfH * 0.28],
     [-halfW, halfH * 0.1],
   ];
   return createProfilePrism({ id: "profile-clipped-roof", profile, depth });
@@ -141,6 +143,27 @@ const choiceFingerprint = (
   vertices: readonly Vec3[],
 ): string => fingerprint64(canonicalStringify({ polyhedronId, vertices } as unknown as JsonValue));
 
+const geometrySeparation = (source: readonly Vec3[], candidate: readonly Vec3[]): number => {
+  if (source.length !== candidate.length || source.length === 0) return Number.POSITIVE_INFINITY;
+  const xs = source.map(([x]) => x);
+  const ys = source.map(([, y]) => y);
+  const zs = source.map(([, , z]) => z);
+  const span = Math.max(
+    Math.max(...xs) - Math.min(...xs),
+    Math.max(...ys) - Math.min(...ys),
+    Math.max(...zs) - Math.min(...zs),
+    1e-9,
+  );
+  return Math.max(...source.map((vertex, index) => {
+    const other = candidate[index] ?? vertex;
+    return Math.hypot(
+      vertex[0] - other[0],
+      vertex[1] - other[1],
+      vertex[2] - other[2],
+    ) / span;
+  }));
+};
+
 const scaleAxis = (
   vertices: readonly Vec3[],
   axis: 0 | 1 | 2,
@@ -178,18 +201,64 @@ const leanUpper = (vertices: readonly Vec3[], amount: number): readonly Vec3[] =
   ]);
 };
 
+const axisScaleAmount = (
+  vertices: readonly Vec3[],
+  axis: 0 | 1 | 2,
+  baseAmount: number,
+): number => {
+  const spans: readonly number[] = [0, 1, 2].map((candidateAxis) => {
+    const values = vertices.map((vertex) => vertex[candidateAxis] ?? 0);
+    return Math.max(...values) - Math.min(...values);
+  });
+  const maximumSpan = Math.max(...spans, 1e-9);
+  const axisSpan = Math.max(spans[axis] ?? 0, 1e-9);
+  return Math.min(0.45, Math.max(baseAmount, 0.13 * maximumSpan / axisSpan));
+};
+
 const deformations = (
   vertices: readonly Vec3[],
   difficulty: 1 | 2 | 3 | 4 | 5,
 ): readonly { readonly vertices: readonly Vec3[]; readonly mutation: string }[] => {
   const amount = ({ 1: 0.30, 2: 0.27, 3: 0.23, 4: 0.19, 5: 0.16 } as const)[difficulty];
+  const heightAmount = axisScaleAmount(vertices, 2, amount);
+  const widthAmount = axisScaleAmount(vertices, 0, amount);
+  const depthAmount = axisScaleAmount(vertices, 1, amount);
   return [
-    { vertices: scaleAxis(vertices, 2, 1 - amount), mutation: "wrong-height" },
-    { vertices: scaleAxis(vertices, 0, 1 - amount), mutation: "wrong-width" },
+    { vertices: scaleAxis(vertices, 2, 1 - heightAmount), mutation: "wrong-height" },
+    { vertices: scaleAxis(vertices, 0, 1 - widthAmount), mutation: "wrong-width" },
     { vertices: taperUpper(vertices, amount), mutation: "wrong-taper" },
     { vertices: leanUpper(vertices, amount * 0.75), mutation: "wrong-slant" },
-    { vertices: scaleAxis(vertices, 1, 1 - amount), mutation: "wrong-depth" },
+    { vertices: scaleAxis(vertices, 1, 1 - depthAmount), mutation: "wrong-depth" },
   ];
+};
+
+const selectDeformations = (
+  vertices: readonly Vec3[],
+  random: RandomSource,
+  difficulty: 1 | 2 | 3 | 4 | 5,
+): readonly { readonly vertices: readonly Vec3[]; readonly mutation: string }[] => {
+  const candidates = random.fork("candidate-order").shuffle(deformations(vertices, difficulty));
+  const validTriples: Array<readonly [typeof candidates[number], typeof candidates[number], typeof candidates[number]]> = [];
+  for (let first = 0; first < candidates.length; first += 1) {
+    for (let second = first + 1; second < candidates.length; second += 1) {
+      for (let third = second + 1; third < candidates.length; third += 1) {
+        const triple = [candidates[first]!, candidates[second]!, candidates[third]!] as const;
+        const sourceSeparated = triple.every(({ vertices: candidate }) =>
+          geometrySeparation(vertices, candidate) >= 0.06);
+        const pairwiseSeparated = triple.every(({ vertices: candidate }, index) =>
+          triple.slice(index + 1).every(({ vertices: other }) =>
+            Math.min(
+              geometrySeparation(candidate, other),
+              geometrySeparation(other, candidate),
+            ) >= 0.045));
+        if (sourceSeparated && pairwiseSeparated) validTriples.push(triple);
+      }
+    }
+  }
+  if (validTriples.length === 0) {
+    throw new Error("Could not create three meaningfully separated form-development distractors");
+  }
+  return random.fork("triple-choice").pick(validTriples);
 };
 
 export const generateFormDevelopmentQuestion = (
@@ -198,16 +267,12 @@ export const generateFormDevelopmentQuestion = (
 ): FormDevelopmentQuestion => {
   const random = createRandomSource(seed);
   const polyhedron = createQuestionPolyhedron(random.fork("polyhedron"), difficulty);
-  const net = createNet(polyhedron);
+  const netVariant = random.fork("net-layout").int(0, 2);
+  const { net, style: netLayoutStyle } = createNetWithStyle(polyhedron, netVariant);
   const patterns = {};
   const targetFingerprint = choiceFingerprint(polyhedron.id, polyhedron.vertices);
 
-  const wrong = random.fork("geometry-distractors")
-    .shuffle(deformations(polyhedron.vertices, difficulty))
-    .filter(({ vertices }) => choiceFingerprint(polyhedron.id, vertices) !== targetFingerprint)
-    .slice(0, 3);
-  if (wrong.length < 3) throw new Error("Could not create three geometric form-development distractors");
-
+  const wrong = selectDeformations(polyhedron.vertices, random.fork("geometry-distractors"), difficulty);
   const raw = [
     { vertices: polyhedron.vertices },
     ...wrong,
@@ -271,10 +336,12 @@ export const generateFormDevelopmentQuestion = (
       geometryVariation: "continuous-parameters",
       modelTier: complexModel ? "golden-complex-v3" : "foundation-v2",
       faceCount: polyhedron.faces.length,
+      netLayoutStyle,
+      netLayoutVariant: netVariant,
       variedChoiceOrientations: true,
     },
   };
   const validation = validateFormDevelopmentQuestion(base);
-  if (!validation.passed) throw new Error(`Form development validation failed: ${validation.checks.filter(({ passed }) => !passed).map(({ id }) => id).join(", ")}`);
+  if (!validation.passed) throw new Error(`Form development validation failed for ${seed}: ${validation.checks.filter(({ passed }) => !passed).map(({ id }) => id).join(", ")}`);
   return { ...base, validation: { passed: true, checks: validation.checks } };
 };

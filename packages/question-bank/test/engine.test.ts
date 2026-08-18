@@ -36,17 +36,24 @@ describe("unified question engine and storage", () => {
     for (const question of result.questions) {
       expect(serializeQuestion(await engine.regenerate(question))).toBe(serializeQuestion(question));
     }
-    const directory = await mkdtemp(path.join(tmpdir(), "manipat-bank-"));
-    await persistBatch(result, {
-      outputDirectory: directory,
+
+    const persistOptions = {
       seed: "bank-test",
       profile: "test",
       difficulty: "2-4",
       engineVersion: engine.engineVersion,
       cliVersion: "0.1.0",
-    });
+    } as const;
+    const directory = await mkdtemp(path.join(tmpdir(), "manipat-bank-"));
+    await persistBatch(result, { outputDirectory: directory, ...persistOptions });
     expect(await readPersistedQuestions(directory)).toHaveLength(12);
     expect(JSON.parse(await readFile(path.join(directory, "validation-report.json"), "utf8"))).toMatchObject({ passed: true, questionCount: 12 });
+
+    const replayDirectory = await mkdtemp(path.join(tmpdir(), "manipat-bank-replay-"));
+    await persistBatch(result, { outputDirectory: replayDirectory, ...persistOptions });
+    expect(await readFile(path.join(replayDirectory, "manifest.json"), "utf8")).toBe(
+      await readFile(path.join(directory, "manifest.json"), "utf8"),
+    );
   }, 60_000);
 
   it("seeds duplicate detection from a previous batch", async () => {
@@ -78,7 +85,8 @@ describe("unified question engine and storage", () => {
     expect(html).toContain("manipat-exam-data");
     expect(html).toContain("@page{size:letter portrait");
     expect(html).toContain("data-exam-question");
-    expect(html).toContain("print-break");
+    expect(html).toContain("break-after:page");
+    expect(html).toContain("page-break-after:always");
     expect(html).toContain('class="question-row"');
     expect(html).toContain('font-family="Arial, Helvetica, sans-serif"');
     expect(html).not.toContain("Review answers");
