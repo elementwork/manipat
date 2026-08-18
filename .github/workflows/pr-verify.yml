@@ -1,0 +1,68 @@
+name: PR Verify
+
+on:
+  push:
+    branches:
+      - agent/golden-fidelity-performance-v7
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.15.1 --activate
+          pnpm --version
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and fuzz tests
+        run: pnpm test
+
+      - name: Full 90-question offline smoke set
+        run: |
+          pnpm dat generate set \
+            --offline \
+            --seed ci-full-set \
+            --output ./output/ci-full-set.html
+          test -s ./output/ci-full-set.html
+
+      - name: Hard-band category smoke tests
+        run: |
+          set -euxo pipefail
+          for category in aperture view-recognition angle paper-folding cube-counting form-development; do
+            pnpm dat generate category "$category" \
+              --count 2 \
+              --difficulty 5 \
+              --offline \
+              --seed "ci-hard-${category}" \
+              --output "./output/ci-hard-${category}.html"
+            test -s "./output/ci-hard-${category}.html"
+          done
+
+      - name: Upload generated HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pat-verification-output
+          path: output/*.html
+          if-no-files-found: warn
