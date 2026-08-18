@@ -5,7 +5,7 @@ ManipAT uses Three.js for **interactive/runtime visualization** while keeping cu
 The two render paths have different jobs:
 
 - **SVG exam rendering** is deterministic, static, printable, accessible, and contains no external runtime dependencies.
-- **Three.js runtime rendering** is exploratory and explanatory: students/developers can rotate, pan, zoom, switch orthographic views, ghost surfaces, and reveal selected explanation geometry.
+- **Three.js runtime rendering** is exploratory and explanatory: students/developers can rotate, pan, zoom, browse questions, switch orthographic views, inspect hidden geometry, and reveal selected explanation geometry.
 
 Rendered pixels are never used as answer truth in either path.
 
@@ -40,15 +40,15 @@ Start the interactive viewer:
 pnpm dat:view ./output/runtime-demo.html
 ```
 
-The command selects the first supported 3D question and serves a local viewer at:
+With no filter, the command reconstructs every supported 3D question in the input and serves a local browser at:
 
 ```text
 http://127.0.0.1:4173/
 ```
 
-The viewer is intentionally localhost-only by default.
+Use the browser's category selector, Previous/Next buttons, or question selector to move through the loaded 3D items. The viewer is intentionally localhost-only by default.
 
-Select a category:
+`--category` is optional. It pre-filters the loaded runtime set when you only want one category:
 
 ```bash
 pnpm dat:view ./output/runtime-demo.html --category aperture
@@ -57,7 +57,7 @@ pnpm dat:view ./output/runtime-demo.html --category cubes
 pnpm dat:view ./output/runtime-demo.html --category form
 ```
 
-Select an exact question:
+Select an exact question when debugging a specific item:
 
 ```bash
 pnpm dat:view ./output/runtime-demo.html --question-id <question-id>
@@ -72,10 +72,11 @@ pnpm dat:view ./output/runtime-demo.html --port 4180
 Verify reconstruction without starting a server/WebGL context:
 
 ```bash
+pnpm dat:view ./output/runtime-demo.html --dry-run
 pnpm dat:view ./output/runtime-demo.html --category aperture --dry-run
 ```
 
-`--dry-run` is also the CI-friendly contract test for persisted-question → Three.js payload reconstruction.
+`--dry-run` reports the number and summaries of all selected runtime payloads and is the CI-friendly contract test for persisted-question → Three.js reconstruction.
 
 ## 3. Viewer Controls
 
@@ -84,19 +85,35 @@ The runtime host supports mouse and touch input through Three.js `OrbitControls`
 - drag: orbit/rotate camera;
 - wheel or pinch: zoom;
 - right-drag / two-finger drag: pan;
-- **3D**: isometric view;
+- **3D**: isometric orthographic view;
 - **Front**: canonical front view;
 - **Top**: canonical top view;
 - **End**: canonical right-side end view;
 - **Target view**: scored/important view when the category defines one;
 - **Reset**: restore the original object orientation and camera;
 - **Auto rotate**: continuously orbit the object;
-- **Ghost**: transparent surface mode for mesh-based questions;
+- **Ghost / hidden lines**: make the surface translucent while preserving solid visible edges and rendering occluded edges with a scaled dashed hidden-line pattern;
 - **Surface**: toggle solid surfaces;
-- **Edges**: toggle logical/pictorial edge overlay;
-- **Show explanation**: reveal category-specific highlighted geometry when available.
+- **Edges**: toggle both visible and hidden edge overlays;
+- **Show explanation**: reveal category-specific highlighted geometry when available;
+- **Category filter**: switch among all loaded 3D categories;
+- **Previous / Next / question selector**: browse the selected runtime question set without restarting the CLI server.
 
 Capabilities are reported by the runtime controller, so a host application should hide controls that are not meaningful for a given payload.
+
+### Depth readability
+
+The 3D runtime intentionally keeps Front/Top/End orthographic because those views must match PAT projection semantics exactly. The default 3D view is also isometric/orthographic, so it does not use perspective foreshortening as a depth cue.
+
+To keep holes and recesses readable despite that constraint, mesh scenes use:
+
+- lower ambient wash than the original renderer;
+- directional key/fill lighting to separate walls, recesses, and blind-hole bottoms;
+- a slightly less diffuse neutral material;
+- a depth-only occlusion pre-pass in Ghost mode;
+- solid visible edges plus dashed hidden edges.
+
+This makes a through-hole and a blind/bottomed hole easier to distinguish without changing the canonical geometry or orthographic view conventions.
 
 ## 4. Architecture
 
@@ -123,7 +140,7 @@ Canonical meshes use ordinary number arrays when serialized and are restored to 
 
 ### 4.2 Question adapter
 
-`createQuestionRuntimeViewer(container, payload)` converts the payload into a category-appropriate Three.js scene.
+`createQuestionRuntimeViewer(container, payload)` converts one payload into a category-appropriate Three.js scene.
 
 Mesh payloads reuse the existing `PictorialPreview` infrastructure:
 
@@ -131,7 +148,9 @@ Mesh payloads reuse the existing `PictorialPreview` infrastructure:
 CanonicalMesh
   → BufferGeometry
   → shaded surface
-  → EdgesGeometry
+  → depth-only occluder
+  → visible EdgesGeometry pass
+  → dashed hidden EdgesGeometry pass
   → orthographic camera
   → optional highlight mesh
 ```
@@ -152,9 +171,9 @@ Voxel payloads use `InstancedMesh` rather than one mesh per cube. Per-instance c
 - reset/auto-rotate;
 - renderer/control/canvas disposal.
 
-The caller continues to own the mathematical scene contents.
+The CLI browser shell owns the exam-level payload set and disposes/recreates a question viewer as the user navigates. The lower-level renderer remains a single-question component, which keeps it reusable for future study-app screens.
 
-This ownership boundary prevents WebGL lifecycle concerns from leaking into geometry generation.
+The caller continues to own the mathematical scene contents. This ownership boundary prevents WebGL lifecycle concerns from leaking into geometry generation.
 
 ## 5. Deterministic Reconstruction
 
@@ -254,7 +273,7 @@ Interactive WebGL code must dispose GPU resources deliberately.
 - browser runtime / OrbitControls;
 - WebGL renderer context;
 - canvas;
-- owned surface/edge/highlight geometries and materials;
+- owned surface/edge/hidden-edge/highlight geometries and materials;
 - owned voxel geometry/materials.
 
 The low-level `InteractiveRuntimeViewer` does **not** dispose arbitrary caller-owned scene objects.
@@ -273,19 +292,20 @@ Test under Node:
 - logical-polyhedron triangulation;
 - face feature groups;
 - voxel highlighting;
+- ghost hidden-edge material/state behavior;
 - invalid index rejection;
 - browser-environment guardrails.
 
 ### End-to-end reconstruction
 
-The CLI integration test generates a deterministic six-category exam and executes viewer `--dry-run` for:
+The CLI integration test generates a deterministic six-category exam and verifies that unfiltered `--dry-run` reconstructs all four 3D categories. It also verifies each category filter individually:
 
 - Aperture;
 - TFE;
 - Cube Counting;
 - Form Development.
 
-This proves persisted question data can become a valid runtime payload without requiring WebGL.
+This proves persisted question data can become valid runtime payloads without requiring WebGL.
 
 ### Browser visual testing
 
@@ -294,9 +314,12 @@ For visual/interaction changes, run locally in a real browser and inspect at min
 - desktop mouse orbit/pan/zoom;
 - mobile/touch orbit/pinch/pan;
 - resize behavior;
+- question navigation/filtering;
 - all camera presets;
 - target-view alignment;
-- ghost/surface/edge toggles;
+- hole/recess depth readability;
+- Ghost visible-vs-hidden line treatment;
+- surface/edge toggles;
 - explanation highlights;
 - disposal/reload behavior.
 
@@ -306,11 +329,11 @@ A future Playwright/WebGL smoke suite is a useful follow-up once the repository 
 
 Highest-value next steps:
 
-1. **Question navigation** — move among all supported questions in a generated set without restarting the viewer.
-2. **Split-view TFE explanation** — synchronized 3D model plus front/top/end SVG diagrams.
-3. **Aperture projection animation** — animate object alignment into the scored aperture and display the resulting silhouette plane.
+1. **Split-view TFE explanation** — synchronized 3D model plus front/top/end SVG diagrams.
+2. **Aperture projection animation** — animate object alignment into the scored aperture and display the resulting silhouette plane.
+3. **Perspective exploration mode** — optional perspective camera for depth intuition while retaining orthographic Front/Top/End as canonical PAT views.
 4. **Form Development fold animation** — animate net faces through hinge transforms into the folded solid.
 5. **Cube face coloring** — highlight individual painted/exposed faces, not only matching cubes.
 6. **Feature provenance highlights** — retain semantic Manifold feature groups through normalization so Aperture/TFE explanation facts can light up exact source features.
-7. **Browser E2E** — Playwright tests for WebGL startup, OrbitControls, resize, and control state.
+7. **Browser E2E** — Playwright tests for WebGL startup, OrbitControls, resize, navigation, and control state.
 8. **Application integration** — embed the reusable runtime controller in the eventual student practice UI rather than relying on the development CLI server.
