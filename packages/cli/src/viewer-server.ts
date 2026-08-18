@@ -143,15 +143,19 @@ export const startViewerServer = async (
           response.end();
           return;
         }
-        if (pathname === "/vendor/three/three.module.js") {
-          await serveFile(response, path.join(threeRoot, "build"), "three.module.js");
-          return;
-        }
         if (pathname.startsWith("/vendor/three/addons/")) {
           await serveFile(
             response,
             path.join(threeRoot, "examples/jsm"),
             pathname.slice("/vendor/three/addons/".length),
+          );
+          return;
+        }
+        if (pathname.startsWith("/vendor/three/")) {
+          await serveFile(
+            response,
+            path.join(threeRoot, "build"),
+            pathname.slice("/vendor/three/".length),
           );
           return;
         }
