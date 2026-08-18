@@ -47,6 +47,7 @@ export interface PictorialPreview extends Disposable {
   highlightFeature(featureId: string, color?: ColorRepresentation): void;
   clearHighlight(): void;
   addProjectionPlane(size?: number): Mesh;
+  dispose(): void;
 }
 
 const degreesToRadians = (degrees: number): number => degrees * Math.PI / 180;
