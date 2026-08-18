@@ -102,8 +102,12 @@ const featureHiddenIndex = (view: OrthographicView): number => {
  */
 export const generateTfeDistractors = (
   correct: OrthographicView,
-  _referenceViews: readonly OrthographicView[] = [],
+  referenceViews: readonly OrthographicView[] = [],
 ): readonly TfeDistractor[] => {
+  // Retain the second parameter for source/API compatibility while deliberately
+  // refusing to transplant those other principal views into the answer box.
+  void referenceViews;
+
   const visible = [...correct.visible];
   const hidden = [...correct.hidden];
   if (visible.length === 0) throw new Error("TFE view has no visible line to mutate");
@@ -182,17 +186,6 @@ export const generateTfeDistractors = (
     );
   }
 
-  // A shorter internal level/ledge is another coherent dimensional mistake.
-  add(
-    "shorten-line",
-    visible.map((line, index) => index === featureIndex ? shortened(line) : line),
-    hidden,
-  );
-
-  if (visible.length > 3 && envelopeTouchCount(target, correct) === 0) {
-    add("delete-edge", visible.filter((_, index) => index !== featureIndex), hidden);
-  }
-
   // Add a parallel internal feature rather than an arbitrary free-floating
   // horizontal line. This keeps the answer visually consistent with the same
   // orthographic envelope and feature orientation.
@@ -202,6 +195,18 @@ export const generateTfeDistractors = (
     ? addPositive
     : insideBounds(addNegative, correct) ? addNegative : undefined;
   if (newEdge !== undefined) add("add-edge", [...visible, newEdge], hidden);
+
+  if (visible.length > 3 && envelopeTouchCount(target, correct) === 0) {
+    add("delete-edge", visible.filter((_, index) => index !== featureIndex), hidden);
+  }
+
+  // Use shortening only as a later fallback; it can be visually less natural
+  // than a coherent shifted/extra feature when the source line is connected.
+  add(
+    "shorten-line",
+    visible.map((line, index) => index === featureIndex ? shortened(line) : line),
+    hidden,
+  );
 
   if (results.length < 3) throw new Error("Could not generate three unique coherent TFE distractors");
   return results.slice(0, 3);
