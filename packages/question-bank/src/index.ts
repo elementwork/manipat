@@ -4,6 +4,7 @@ export * from "./engine.js";
 export * from "./exam-html.js";
 export * from "./errors.js";
 export * from "./fingerprints.js";
+export * from "./runtime-models.js";
 export * from "./serialization.js";
 export * from "./storage.js";
 export * from "./types.js";
