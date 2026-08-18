@@ -19,6 +19,7 @@ describe("TfeGenerator", () => {
     const generator = await createTfeGenerator();
     const templates = new Set<string>();
     const missingViews = new Set<string>();
+    const mutationKinds = new Set<string>();
     let advancedTemplateCount = 0;
     for (let index = 0; index < 1_000; index += 1) {
       const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;
@@ -30,6 +31,10 @@ describe("TfeGenerator", () => {
       const mutations = question.choices.flatMap(({ mutation }) => mutation === undefined ? [] : [mutation]);
       expect(new Set(mutations).size).toBeGreaterThanOrEqual(2);
       expect(mutations).not.toContain("wrong-projection");
+      expect(mutations).not.toContain("move-line");
+      expect(mutations).not.toContain("shorten-line");
+      expect(mutations).not.toContain("add-edge");
+      expect(mutations).not.toContain("delete-edge");
       expect(question.metadata.distractorModel).toBe("missing-view-semantic-v3");
       expect(Number(question.metadata.projectionSubdivisions ?? 0)).toBe(6);
       expect(question.templateId.startsWith("TFE")).toBe(true);
@@ -43,9 +48,12 @@ describe("TfeGenerator", () => {
       }
       templates.add(question.templateId);
       missingViews.add(question.prompt.missingView);
+      mutations.forEach((mutation) => mutationKinds.add(mutation));
     }
     expect(templates.size).toBeGreaterThanOrEqual(10);
     expect(advancedTemplateCount).toBeGreaterThan(500);
     expect(missingViews).toEqual(new Set(["front", "top", "end"]));
+    expect(mutationKinds).toContain("dimension-change");
+    expect(mutationKinds).toContain("visibility-flip");
   }, 180_000);
 });
