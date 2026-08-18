@@ -5,4 +5,5 @@ export * from "./question-viewer.js";
 export * from "./runtime-payload.js";
 export * from "./runtime-viewer.js";
 export * from "./scene.js";
+export * from "./semantic-patches.js";
 export * from "./voxels.js";

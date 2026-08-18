@@ -2,11 +2,12 @@ import { createRandomSource } from "@manipat/core";
 import {
   createManifoldKernel,
   normalizeSolid,
+  type CanonicalMesh,
 } from "@manipat/geometry";
 import { APERTURE_TEMPLATES } from "../../object-generator/src/index.js";
 import { Box3, LineDashedMaterial, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { createPictorialPreview } from "../src/index.js";
+import { createLearningPictorialPreview, createPictorialPreview } from "../src/index.js";
 
 describe("pictorial previews", () => {
   it("frames every Phase 1 template without clipping", async () => {
@@ -78,5 +79,26 @@ describe("pictorial previews", () => {
 
     preview.addProjectionPlane();
     expect(preview.object.getObjectByName("projection-plane")).toBeDefined();
+  });
+
+  it("colors a semantic planar face as one patch instead of triangle halves", () => {
+    const mesh: CanonicalMesh = {
+      positions: Float32Array.from([
+        0, 0, 0,
+        2, 0, 0,
+        2, 1, 0,
+        0, 1, 0,
+      ]),
+      indices: Uint32Array.from([0, 1, 2, 0, 2, 3]),
+      vertexCount: 4,
+      triangleCount: 2,
+      // Intentionally tag only one triangulation half. The renderer should
+      // propagate the semantic cue across the connected coplanar face patch.
+      groups: [{ featureId: "raised-feature", start: 0, count: 3 }],
+      bounds: { min: [0, 0, 0], max: [2, 1, 0] },
+    };
+    using preview = createLearningPictorialPreview(mesh);
+    const colors = Array.from(preview.semanticSurface.geometry.getAttribute("color").array);
+    expect(colors.slice(0, 9)).toEqual(colors.slice(9, 18));
   });
 });

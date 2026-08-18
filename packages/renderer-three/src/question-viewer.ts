@@ -19,7 +19,8 @@ import {
   type RuntimeViewPreset,
   type RuntimeVoxelVisualization,
 } from "./runtime-payload.js";
-import { createPictorialPreview, type PictorialPreview } from "./scene.js";
+import { createLearningPictorialPreview } from "./semantic-patches.js";
+import type { PictorialPreview } from "./scene.js";
 import { createVoxelInstancedRender, type VoxelInstancedRender } from "./voxels.js";
 
 export interface QuestionViewerCapabilities {
@@ -76,7 +77,7 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
     options: InteractiveRuntimeViewerOptions,
   ) {
     this.payload = payload;
-    this.#preview = createPictorialPreview(deserializeCanonicalMesh(payload.mesh), {
+    this.#preview = createLearningPictorialPreview(deserializeCanonicalMesh(payload.mesh), {
       paddingFactor: 1.35,
     });
     this.#highlightTriangles = highlightTrianglesForFeatures(payload);
@@ -103,6 +104,9 @@ class MeshQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.#preview.setRotation(ZERO_ROTATION);
     this.#preview.clearHighlight();
     this.#preview.setColorCoded(false);
+    this.#preview.setGhosted(false);
+    this.#preview.setSurfaceVisible(true);
+    this.#preview.setEdgesVisible(true);
     this.runtime.reset();
   }
 
@@ -203,10 +207,15 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
     this.#group = new Group();
     this.#group.position.copy(center.multiplyScalar(-1));
     this.#voxels = createVoxelInstancedRender(payload.positions);
-    this.#group.add(this.#voxels.mesh);
+    this.#group.add(
+      this.#voxels.depthOccluder,
+      this.#voxels.mesh,
+      this.#voxels.hiddenEdges,
+      this.#voxels.edges,
+    );
     scene.add(this.#group);
-    scene.add(new AmbientLight(0xffffff, 1.6));
-    const key = new DirectionalLight(0xffffff, 2.2);
+    scene.add(new AmbientLight(0xffffff, 1.25));
+    const key = new DirectionalLight(0xffffff, 2.0);
     key.position.set(1, -2, 3);
     scene.add(key);
 
@@ -219,8 +228,8 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
     });
     this.runtime = createInteractiveRuntimeViewer(container, scene, camera, options);
     this.capabilities = Object.freeze({
-      ghost: false,
-      edges: false,
+      ghost: true,
+      edges: true,
       colorCode: false,
       explanation: (payload.highlightIndices?.length ?? 0) > 0,
       targetView: payload.targetPreset !== undefined,
@@ -238,6 +247,9 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
   public reset(): void {
     this.#assertActive();
     this.#voxels.clearHighlight();
+    this.#voxels.setGhosted(false);
+    this.#voxels.setSurfaceVisible(true);
+    this.#voxels.setEdgesVisible(true);
     this.runtime.reset();
   }
 
@@ -258,7 +270,8 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
 
   public setGhosted(ghosted: boolean): void {
     this.#assertActive();
-    void ghosted;
+    this.#voxels.setGhosted(ghosted);
+    this.runtime.render();
   }
 
   public setColorCoded(enabled: boolean): void {
@@ -268,13 +281,14 @@ class VoxelQuestionRuntimeViewer implements QuestionRuntimeViewer {
 
   public setSurfaceVisible(visible: boolean): void {
     this.#assertActive();
-    this.#voxels.mesh.visible = visible;
+    this.#voxels.setSurfaceVisible(visible);
     this.runtime.render();
   }
 
   public setEdgesVisible(visible: boolean): void {
     this.#assertActive();
-    void visible;
+    this.#voxels.setEdgesVisible(visible);
+    this.runtime.render();
   }
 
   public setExplanationVisible(visible: boolean): void {
