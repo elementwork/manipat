@@ -64,6 +64,7 @@ const snap = (value: number): number => {
   return Object.is(result, -0) ? 0 : result;
 };
 const comparePoint = (a: Vec2, b: Vec2): number => a[0] - b[0] || a[1] - b[1];
+const pointKey = ([x, y]: Vec2): string => `${x},${y}`;
 const canonicalSegment = ({ a, b }: Segment2): Segment2 => {
   const first: Vec2 = [snap(a[0]), snap(a[1])];
   const second: Vec2 = [snap(b[0]), snap(b[1])];
@@ -200,19 +201,16 @@ const prepareTriangleGrid = (
   };
 };
 
-const candidateTriangles = (
+const candidateTriangleIndices = (
   grid: TriangleGrid,
   projected: Vec2,
-): readonly PreparedTriangle[] => {
+): readonly number[] => {
   if (grid.triangles.length === 0
     || projected[0] < grid.minX || projected[0] > grid.maxX
     || projected[1] < grid.minY || projected[1] > grid.maxY) return [];
   const column = gridCoordinate(projected[0], grid.minX, grid.cellWidth, grid.columns);
   const row = gridCoordinate(projected[1], grid.minY, grid.cellHeight, grid.rows);
-  return (grid.cells[row * grid.columns + column] ?? []).flatMap((index) => {
-    const triangle = grid.triangles[index];
-    return triangle === undefined ? [] : [triangle];
-  });
+  return grid.cells[row * grid.columns + column] ?? [];
 };
 
 const isVisible = (
@@ -224,7 +222,9 @@ const isVisible = (
   const origin = subtract3(point, scale3(frame.viewDirection, rayLength));
   const projected = projectPoint(point, frame);
   const occlusionThreshold = rayLength - EPS.length * 10;
-  for (const triangle of candidateTriangles(grid, projected)) {
+  for (const triangleIndex of candidateTriangleIndices(grid, projected)) {
+    const triangle = grid.triangles[triangleIndex];
+    if (triangle === undefined) continue;
     // The cell test is conservative. Keep the exact projected triangle bounds
     // check before the more expensive ray/triangle intersection.
     if (projected[0] < triangle.minX || projected[0] > triangle.maxX
@@ -243,42 +243,97 @@ const isVisible = (
   return true;
 };
 
-const mergePair = (first: Segment2, second: Segment2): Segment2 | null => {
-  const candidates: readonly [Vec2, Vec2, Vec2, Vec2][] = [
-    [first.a, first.b, second.a, second.b],
-    [first.a, first.b, second.b, second.a],
-    [first.b, first.a, second.a, second.b],
-    [first.b, first.a, second.b, second.a],
-  ];
-  for (const [shared, otherFirst, secondShared, otherSecond] of candidates) {
-    if (comparePoint(shared, secondShared) !== 0) continue;
-    const firstVector: Vec2 = [otherFirst[0] - shared[0], otherFirst[1] - shared[1]];
-    const secondVector: Vec2 = [otherSecond[0] - shared[0], otherSecond[1] - shared[1]];
-    if (Math.abs(firstVector[0] * secondVector[1] - firstVector[1] * secondVector[0]) <= EPS.collinear) {
-      return canonicalSegment({ a: otherFirst, b: otherSecond });
-    }
-  }
-  return null;
+const areCollinear = (first: Segment2, second: Segment2): boolean => {
+  const firstVector: Vec2 = [first.b[0] - first.a[0], first.b[1] - first.a[1]];
+  const secondVector: Vec2 = [second.b[0] - second.a[0], second.b[1] - second.a[1]];
+  return Math.abs(firstVector[0] * secondVector[1] - firstVector[1] * secondVector[0]) <= EPS.collinear;
 };
 
+/**
+ * Merge only segments that are connected through a shared snapped endpoint and
+ * collinear, matching the old pairwise rule without repeatedly rescanning all
+ * segment pairs after every merge. Visibility fragmentation can create
+ * thousands of tiny pieces on complex objects; endpoint indexing keeps this
+ * stage close to linear for normal manifold edge graphs.
+ */
 export const mergeCollinearSegments = (input: readonly Segment2[]): readonly Segment2[] => {
   const segments = [...new Map(input.map(canonicalSegment).map((segment) => [segmentKey(segment), segment])).values()];
-  let merged = true;
-  while (merged) {
-    merged = false;
-    outer: for (let first = 0; first < segments.length; first += 1) {
-      for (let second = first + 1; second < segments.length; second += 1) {
-        const combined = mergePair(segments[first]!, segments[second]!);
-        if (combined !== null) {
-          segments.splice(second, 1);
-          segments.splice(first, 1, combined);
-          merged = true;
-          break outer;
+  if (segments.length <= 1) return segments;
+
+  const incident = new Map<string, number[]>();
+  segments.forEach((segment, index) => {
+    for (const point of [segment.a, segment.b]) {
+      const key = pointKey(point);
+      const indices = incident.get(key) ?? [];
+      indices.push(index);
+      incident.set(key, indices);
+    }
+  });
+
+  const visited = new Set<number>();
+  const merged: Segment2[] = [];
+  for (let start = 0; start < segments.length; start += 1) {
+    if (visited.has(start)) continue;
+    const seed = segments[start];
+    if (seed === undefined) continue;
+    const queue = [start];
+    const component: number[] = [];
+    visited.add(start);
+
+    while (queue.length > 0) {
+      const currentIndex = queue.pop();
+      if (currentIndex === undefined) continue;
+      const current = segments[currentIndex];
+      if (current === undefined) continue;
+      component.push(currentIndex);
+      for (const endpoint of [current.a, current.b]) {
+        for (const neighborIndex of incident.get(pointKey(endpoint)) ?? []) {
+          if (visited.has(neighborIndex)) continue;
+          const neighbor = segments[neighborIndex];
+          if (neighbor === undefined || !areCollinear(current, neighbor)) continue;
+          visited.add(neighborIndex);
+          queue.push(neighborIndex);
         }
       }
     }
+
+    if (component.length === 1) {
+      merged.push(seed);
+      continue;
+    }
+
+    const dx = seed.b[0] - seed.a[0];
+    const dy = seed.b[1] - seed.a[1];
+    const squaredLength = dx * dx + dy * dy;
+    if (squaredLength <= EPS.projection * EPS.projection) {
+      merged.push(seed);
+      continue;
+    }
+
+    let minimumPoint = seed.a;
+    let maximumPoint = seed.b;
+    let minimumProjection = seed.a[0] * dx + seed.a[1] * dy;
+    let maximumProjection = seed.b[0] * dx + seed.b[1] * dy;
+    for (const index of component) {
+      const segment = segments[index];
+      if (segment === undefined) continue;
+      for (const point of [segment.a, segment.b]) {
+        const projection = point[0] * dx + point[1] * dy;
+        if (projection < minimumProjection) {
+          minimumProjection = projection;
+          minimumPoint = point;
+        }
+        if (projection > maximumProjection) {
+          maximumProjection = projection;
+          maximumPoint = point;
+        }
+      }
+    }
+    merged.push(canonicalSegment({ a: minimumPoint, b: maximumPoint }));
   }
-  return segments.sort((a, b) => segmentKey(a).localeCompare(segmentKey(b)));
+
+  return [...new Map(merged.map((segment) => [segmentKey(segment), segment])).values()]
+    .sort((a, b) => segmentKey(a).localeCompare(segmentKey(b)));
 };
 
 export const canonicalizeOrthographicView = (
