@@ -1,7 +1,6 @@
 import type { Vec3 } from "@manipat/core";
 import type { CanonicalMesh } from "@manipat/geometry";
 import {
-  AmbientLight,
   BufferGeometry,
   Color,
   DirectionalLight,
@@ -9,7 +8,9 @@ import {
   EdgesGeometry,
   Float32BufferAttribute,
   Group,
+  HemisphereLight,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -21,8 +22,10 @@ import {
 } from "three";
 import { createIsometricOrthographicCamera } from "./cameras.js";
 import {
+  createDepthOccluderMaterial,
   createExamEdgeMaterial,
   createExamSurfaceMaterial,
+  createHiddenEdgeMaterial,
   createHighlightMaterial,
   type ExamMaterialOptions,
 } from "./materials.js";
@@ -40,9 +43,11 @@ export interface PictorialPreview extends Disposable {
   readonly object: Group;
   readonly surface: Mesh;
   readonly edges: LineSegments;
+  readonly hiddenEdges: LineSegments;
   readonly disposed: boolean;
   setRotation(degreesXYZ: Vec3): void;
   setGhosted(ghosted: boolean): void;
+  setEdgesVisible(visible: boolean): void;
   highlightTriangles(triangleIndices: readonly number[], color?: ColorRepresentation): void;
   highlightFeature(featureId: string, color?: ColorRepresentation): void;
   clearHighlight(): void;
@@ -65,11 +70,14 @@ class ThreePictorialPreview implements PictorialPreview {
   public readonly object: Group;
   public readonly surface: Mesh;
   public readonly edges: LineSegments;
+  public readonly hiddenEdges: LineSegments;
+  readonly #depthOccluder: Mesh;
   readonly #canonicalMesh: CanonicalMesh;
   readonly #surfaceGeometry: BufferGeometry;
   readonly #edgeGeometry: EdgesGeometry;
   #highlight: Mesh | undefined;
   #projectionPlanes: Mesh[] = [];
+  #edgesVisible = true;
   #disposed = false;
 
   public constructor(mesh: CanonicalMesh, options: PictorialPreviewOptions) {
@@ -93,18 +101,43 @@ class ThreePictorialPreview implements PictorialPreview {
     );
     this.object.position.copy(center.multiplyScalar(-1));
     this.#surfaceGeometry = manifoldMeshToBufferGeometry(mesh);
+
+    // The invisible depth pre-pass lets Ghost mode distinguish visible edges
+    // from edges occluded by the nearest surface.
+    this.#depthOccluder = new Mesh(this.#surfaceGeometry, createDepthOccluderMaterial());
+    this.#depthOccluder.name = "depth-occluder";
+    this.#depthOccluder.renderOrder = -2;
+
     this.surface = new Mesh(this.#surfaceGeometry, createExamSurfaceMaterial(options));
+    this.surface.renderOrder = -1;
+
     this.#edgeGeometry = new EdgesGeometry(
       this.#surfaceGeometry,
       options.edgeThresholdDegrees ?? 20,
     );
+    this.hiddenEdges = new LineSegments(this.#edgeGeometry, createHiddenEdgeMaterial());
+    this.hiddenEdges.name = "hidden-edges";
+    this.hiddenEdges.computeLineDistances();
+    this.hiddenEdges.visible = options.ghosted === true;
+    this.hiddenEdges.renderOrder = 1;
+
     this.edges = new LineSegments(this.#edgeGeometry, createExamEdgeMaterial());
-    this.object.add(this.surface, this.edges);
+    this.edges.name = "visible-edges";
+    this.edges.renderOrder = 2;
+
+    this.object.add(this.#depthOccluder, this.surface, this.hiddenEdges, this.edges);
     this.scene.add(this.object);
-    this.scene.add(new AmbientLight(0xffffff, 1.6));
-    const key = new DirectionalLight(0xffffff, 2.2);
-    key.position.set(1, -2, 3);
+
+    // Lower ambient wash and cross-lighting make cylindrical recesses, blind
+    // holes, and interior walls read with much stronger depth than the former
+    // high-ambient setup while keeping the neutral exam-style material.
+    this.scene.add(new HemisphereLight(0xffffff, 0x7b8490, 0.72));
+    const key = new DirectionalLight(0xffffff, 1.55);
+    key.position.set(2, -3, 4);
     this.scene.add(key);
+    const fill = new DirectionalLight(0xb9d2ff, 0.38);
+    fill.position.set(-3, 2, 1);
+    this.scene.add(fill);
   }
 
   public get disposed(): boolean {
@@ -126,6 +159,16 @@ class ThreePictorialPreview implements PictorialPreview {
     const previous = this.surface.material;
     this.surface.material = createExamSurfaceMaterial({ ghosted });
     if (!Array.isArray(previous)) previous.dispose();
+    this.hiddenEdges.visible = ghosted && this.#edgesVisible;
+  }
+
+  public setEdgesVisible(visible: boolean): void {
+    this.#assertActive();
+    this.#edgesVisible = visible;
+    this.edges.visible = visible;
+    const surfaceMaterial = this.surface.material;
+    const ghosted = !Array.isArray(surfaceMaterial) && surfaceMaterial.transparent;
+    this.hiddenEdges.visible = visible && ghosted;
   }
 
   public highlightTriangles(
@@ -203,8 +246,12 @@ class ThreePictorialPreview implements PictorialPreview {
     this.#edgeGeometry.dispose();
     const surfaceMaterial = this.surface.material;
     if (!Array.isArray(surfaceMaterial)) surfaceMaterial.dispose();
+    const depthMaterial = this.#depthOccluder.material;
+    if (!Array.isArray(depthMaterial)) depthMaterial.dispose();
     const edgeMaterial = this.edges.material;
     if (edgeMaterial instanceof LineBasicMaterial) edgeMaterial.dispose();
+    const hiddenMaterial = this.hiddenEdges.material;
+    if (hiddenMaterial instanceof LineDashedMaterial) hiddenMaterial.dispose();
     for (const plane of this.#projectionPlanes) {
       plane.geometry.dispose();
       const material = plane.material;
