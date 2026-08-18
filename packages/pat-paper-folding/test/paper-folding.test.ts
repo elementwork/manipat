@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   generatePaperFoldingQuestion,
   reflectPoint,
+  renderFoldStep,
   validatePaperFoldingQuestion,
 } from "../src/index.js";
 
@@ -19,23 +20,38 @@ describe("paper folding", () => {
     }
   });
 
-  it("renders fold frames as solid current paper plus dotted folded-away paper", () => {
+  it("renders golden-style layered fold panels over the original dashed square", () => {
+    const quarterFold = {
+      id: "quarter-right-in",
+      line: { point: [3, 0] as const, unitDirection: [0, 1] as const },
+      movingSide: -1 as const,
+    };
+    const svg = renderFoldStep([quarterFold], [], 0);
+
+    expect(svg).toContain('data-original-position="true"');
+    expect(svg).toContain("stroke-dasharray");
+    expect(svg.match(/data-paper-panel=/gu)).toHaveLength(2);
+    expect(svg).not.toContain("data-folded-away");
+    expect(svg).not.toContain("data-fold-id");
+    expect(svg).not.toContain("<line");
+  });
+
+  it("keeps the original dashed reference in every fold and punch frame", () => {
     const question = generatePaperFoldingQuestion("fold-render-regression", 4);
     expect(question.prompt.stepSvgs).toHaveLength(question.prompt.folds.length + 1);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
     expect(question.choices.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
-
-    const foldFrames = question.prompt.stepSvgs.slice(0, -1);
-    expect(foldFrames.every((svg) => svg.includes("data-folded-away"))).toBe(true);
-    expect(foldFrames.every((svg) => svg.includes("stroke-dasharray"))).toBe(true);
-    expect(foldFrames.every((svg) => !svg.includes("data-fold-id"))).toBe(true);
-    expect(foldFrames.every((svg) => !svg.includes("<line"))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => svg.includes('data-original-position="true"'))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => svg.includes("stroke-dasharray"))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => svg.includes("data-paper-panel"))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => !svg.includes("data-folded-away"))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => !svg.includes("data-fold-id"))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => !svg.includes("<line"))).toBe(true);
 
     const finalStep = question.prompt.stepSvgs.at(-1)!;
     expect(finalStep).toContain("<polygon");
     expect(finalStep).toContain("<circle");
-    expect(finalStep).not.toContain("data-folded-away");
-    expect(finalStep).not.toContain("stroke-dasharray");
+    expect(finalStep).toContain('data-original-position="true"');
   });
 
   it("generates 2,000 deterministic, uniquely solvable questions", () => {
