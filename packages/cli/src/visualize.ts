@@ -153,39 +153,54 @@ const payloadSummary = (payload: RuntimeVisualizationPayload): JsonValue => payl
       targetView: payload.targetPreset ?? null,
     };
 
-const selectQuestion = (
+const selectQuestions = (
   questions: readonly AnyPatQuestion[],
   questionId: string | undefined,
   categoryText: string | undefined,
-): AnyPatQuestion => {
+): readonly AnyPatQuestion[] => {
   if (questionId !== undefined) {
     const question = questions.find(({ id }) => id === questionId);
     if (question === undefined) throw new RangeError(`Question id not found: ${questionId}`);
     if (!isVisualizableCategory(question.type)) {
       throw new RangeError(`${question.type} is not a Three.js 3D category`);
     }
-    return question;
+    return [question];
   }
+
   const requestedCategory = categoryText === undefined ? undefined : categoryFromText(categoryText);
-  const question = questions.find((candidate) =>
+  const selected = questions.filter((candidate) =>
     isVisualizableCategory(candidate.type)
       && (requestedCategory === undefined || candidate.type === requestedCategory));
-  if (question === undefined) {
+  if (selected.length === 0) {
     throw new RangeError(
       requestedCategory === undefined
         ? "Input contains no 3D question available for visualization"
         : `Input contains no ${requestedCategory} question available for visualization`,
     );
   }
-  return question;
+  return selected;
+};
+
+const buildPayloads = async (
+  questions: readonly AnyPatQuestion[],
+): Promise<readonly RuntimeVisualizationPayload[]> => {
+  const payloads: RuntimeVisualizationPayload[] = [];
+  // Reconstruct sequentially. Aperture/TFE use WASM-backed geometry kernels;
+  // keeping this deterministic and low-memory is more useful for a local
+  // inspector than maximizing startup parallelism.
+  for (const question of questions) payloads.push(await buildVisualizationPayload(question));
+  return payloads;
 };
 
 export const visualizeCommand = async (options: VisualizeCommandOptions): Promise<void> => {
   const questions = await readPersistedQuestions(path.resolve(options.target));
-  const question = selectQuestion(questions, options.questionId, options.category);
-  const payload = await buildVisualizationPayload(question);
+  const selected = selectQuestions(questions, options.questionId, options.category);
+  const payloads = await buildPayloads(selected);
   if (options.dryRun === true) {
-    process.stdout.write(`${canonicalStringify(payloadSummary(payload))}\n`);
+    process.stdout.write(`${canonicalStringify({
+      questionCount: payloads.length,
+      questions: payloads.map(payloadSummary),
+    })}\n`);
     return;
   }
   const host = options.host ?? "127.0.0.1";
@@ -193,7 +208,7 @@ export const visualizeCommand = async (options: VisualizeCommandOptions): Promis
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new RangeError("--port must be an integer from 1 to 65535");
   }
-  await startViewerServer(payload, host, port);
+  await startViewerServer(payloads, host, port);
 };
 
 export const visualizableCategories = (): readonly VisualizableCategory[] =>
