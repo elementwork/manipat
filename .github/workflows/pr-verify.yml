@@ -41,6 +41,7 @@ jobs:
       - name: Full 90-question offline smoke set
         run: |
           pnpm dat generate set \
+            --workers 3 \
             --offline \
             --seed ci-full-set \
             --output ./output/ci-full-set.html
