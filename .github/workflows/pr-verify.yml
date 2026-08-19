@@ -48,6 +48,8 @@ jobs:
             --seed ci-full-set \
             --output ./output/ci-full-set.html
           test -s ./output/ci-full-set.html
+          grep -q 'answer-sheet answer-sheet-single-page' ./output/ci-full-set.html
+          grep -q 'answer-sheet-single-page{break-inside:avoid' ./output/ci-full-set.html
           if grep -q 'Answer Key' ./output/ci-full-set.html; then
             echo "Default exam unexpectedly exposed solutions" >&2
             exit 1
@@ -74,6 +76,7 @@ jobs:
           test -s ./output/ci-full-set.interactive.html
           grep -q 'name="manipat-viewer-mode" content="portable"' ./output/ci-full-set.interactive.html
           grep -q 'Answer Sheet' ./output/ci-full-set.interactive.html
+          grep -q 'answer-sheet answer-sheet-single-page' ./output/ci-full-set.interactive.html
           grep -q 'manipat-exam-data' ./output/ci-full-set.interactive.html
           grep -q 'Study Tools' ./output/ci-full-set.interactive.html
           grep -q 'Check Answer' ./output/ci-full-set.interactive.html
