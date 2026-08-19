@@ -13,6 +13,7 @@
     { "path": "packages/pat-form-development" },
     { "path": "packages/question-bank" },
     { "path": "packages/cli" },
-    { "path": "packages/renderer-three" }
+    { "path": "packages/renderer-three" },
+    { "path": "runtime" }
   ]
 }

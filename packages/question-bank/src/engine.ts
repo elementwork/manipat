@@ -35,14 +35,20 @@ export interface PatEngineOptions {
   readonly engineVersion?: string;
 }
 
+interface SpatialGenerators {
+  readonly aperture: ApertureGenerator;
+  readonly tfe: TfeGenerator;
+}
+
 export class PatEngine {
   public readonly engineVersion: string;
-  readonly #aperture: ApertureGenerator;
-  readonly #tfe: TfeGenerator;
+  readonly #aperture: ApertureGenerator | undefined;
+  readonly #tfe: TfeGenerator | undefined;
+  #spatialGeneratorsPromise: Promise<SpatialGenerators> | undefined;
 
   public constructor(
-    aperture: ApertureGenerator,
-    tfe: TfeGenerator,
+    aperture?: ApertureGenerator,
+    tfe?: TfeGenerator,
     engineVersion = "0.1.0",
   ) {
     this.#aperture = aperture;
@@ -50,18 +56,40 @@ export class PatEngine {
     this.engineVersion = engineVersion;
   }
 
+  async #getSpatialGenerators(): Promise<SpatialGenerators> {
+    if (this.#aperture !== undefined && this.#tfe !== undefined) {
+      return { aperture: this.#aperture, tfe: this.#tfe };
+    }
+
+    this.#spatialGeneratorsPromise ??= createManifoldKernel().then((kernel) => ({
+      aperture: this.#aperture ?? new ApertureGenerator(kernel),
+      tfe: this.#tfe ?? new TfeGenerator(kernel),
+    }));
+    return this.#spatialGeneratorsPromise;
+  }
+
   public async generate(request: GenerateRequest): Promise<AnyPatQuestion> {
     const difficulty = request.difficulty ?? 3;
-    const question = this.#generateSync(request.type, request.seed, difficulty);
+    const question = await this.#generate(request.type, request.seed, difficulty);
     return question.engineVersion === this.engineVersion
       ? question
       : { ...question, engineVersion: this.engineVersion };
   }
 
-  #generateSync(type: PatQuestionType, seed: string, difficulty: DifficultyBand): AnyPatQuestion {
+  async #generate(
+    type: PatQuestionType,
+    seed: string,
+    difficulty: DifficultyBand,
+  ): Promise<AnyPatQuestion> {
     switch (type) {
-      case "aperture": return this.#aperture.generate(seed, difficulty);
-      case "view-recognition": return this.#tfe.generate(seed, difficulty);
+      case "aperture": {
+        const { aperture } = await this.#getSpatialGenerators();
+        return aperture.generate(seed, difficulty);
+      }
+      case "view-recognition": {
+        const { tfe } = await this.#getSpatialGenerators();
+        return tfe.generate(seed, difficulty);
+      }
       case "angle": return generateAngleQuestion(seed, difficulty);
       case "paper-folding": return generatePaperFoldingQuestion(seed, difficulty);
       case "cube-counting": {
@@ -142,13 +170,15 @@ export class PatEngine {
   }
 }
 
+/**
+ * Creates a PAT engine without eagerly loading the Manifold WASM runtime.
+ * Aperture and view-recognition initialize the geometry kernel on first use;
+ * the four 2D/discrete categories do not pay that startup cost.
+ */
 export const createPatEngine = async (
   options: PatEngineOptions = {},
-): Promise<PatEngine> => {
-  const kernel = await createManifoldKernel();
-  return new PatEngine(
-    new ApertureGenerator(kernel),
-    new TfeGenerator(kernel),
-    options.engineVersion ?? "0.1.0",
-  );
-};
+): Promise<PatEngine> => new PatEngine(
+  undefined,
+  undefined,
+  options.engineVersion ?? "0.1.0",
+);

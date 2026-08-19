@@ -1,0 +1,16 @@
+{
+  "name": "@manipat/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Stable server-side application integration boundary for the ManipAT PAT engine.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
