@@ -1,6 +1,7 @@
 import { canonicalStringify, type JsonValue } from "@manipat/core";
 import { describe, expect, it } from "vitest";
 import {
+  buildPaperVisualFoldTransitions,
   generatePaperFoldingQuestion,
   reflectPoint,
   renderFoldStep,
@@ -36,11 +37,33 @@ describe("paper folding", () => {
     expect(svg).not.toContain("<line");
   });
 
+  it("exposes canonical visual panel transitions for hinge animation", () => {
+    const folds = [
+      {
+        id: "quarter-right-in",
+        line: { point: [3, 0] as const, unitDirection: [0, 1] as const },
+        movingSide: -1 as const,
+      },
+      {
+        id: "center-top-bottom",
+        line: { point: [0, 2] as const, unitDirection: [1, 0] as const },
+        movingSide: 1 as const,
+      },
+    ];
+    const transitions = buildPaperVisualFoldTransitions(folds);
+    expect(transitions).toHaveLength(2);
+    expect(transitions[0]).toMatchObject({ foldId: "quarter-right-in" });
+    expect(transitions[0]?.stationaryPolygons.length).toBeGreaterThan(0);
+    expect(transitions[0]?.movingPolygons.length).toBeGreaterThan(0);
+    expect(transitions[1]?.movingPolygons.length).toBeGreaterThan(0);
+    expect(transitions.flatMap(({ movingPolygons }) => movingPolygons).every((polygon) => polygon.length >= 3)).toBe(true);
+  });
+
   it("keeps the original dashed reference in every fold and punch frame", () => {
     const question = generatePaperFoldingQuestion("fold-render-regression", 4);
     expect(question.prompt.stepSvgs).toHaveLength(question.prompt.folds.length + 1);
-    expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
     expect(question.choices.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
+    expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes('data-original-position="true"'))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes("stroke-dasharray"))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes("data-paper-panel"))).toBe(true);

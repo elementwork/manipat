@@ -2,11 +2,12 @@ import { createRandomSource } from "@manipat/core";
 import {
   createManifoldKernel,
   normalizeSolid,
+  type CanonicalMesh,
 } from "@manipat/geometry";
 import { APERTURE_TEMPLATES } from "../../object-generator/src/index.js";
-import { Box3, Vector3 } from "three";
+import { Box3, LineDashedMaterial, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { createPictorialPreview } from "../src/index.js";
+import { createLearningPictorialPreview, createPictorialPreview } from "../src/index.js";
 
 describe("pictorial previews", () => {
   it("frames every Phase 1 template without clipping", async () => {
@@ -41,7 +42,7 @@ describe("pictorial previews", () => {
     }
   });
 
-  it("supports rotation, highlighting, ghosting, and projection overlays", async () => {
+  it("supports color coding, rotation, highlighting, ghost hidden lines, and projection overlays", async () => {
     const kernel = await createManifoldKernel();
     using cube = kernel.cube([100, 80, 60], true);
     const mesh = { ...kernel.getMesh(cube), groups: [{ featureId: "body", start: 0, count: 6 }] };
@@ -50,9 +51,54 @@ describe("pictorial previews", () => {
     expect(preview.object.rotation.x).toBeCloseTo(Math.PI / 18);
     preview.highlightFeature("body");
     expect(preview.object.getObjectByName("selection-highlight")).toBeDefined();
+
+    expect(preview.semanticSurface.visible).toBe(false);
+    expect(preview.semanticSurface.geometry.getAttribute("color").count).toBe(mesh.triangleCount * 3);
+    preview.setColorCoded(true);
+    expect(preview.surface.visible).toBe(false);
+    expect(preview.semanticSurface.visible).toBe(true);
+    preview.setSurfaceVisible(false);
+    expect(preview.semanticSurface.visible).toBe(false);
+    preview.setSurfaceVisible(true);
+    expect(preview.semanticSurface.visible).toBe(true);
+
+    expect(preview.hiddenEdges.visible).toBe(false);
     preview.setGhosted(true);
-    expect(preview.surface.material).toMatchObject({ transparent: true, opacity: 0.28 });
+    expect(preview.semanticSurface.material).toMatchObject({ transparent: true, opacity: 0.24 });
+    expect(preview.hiddenEdges.visible).toBe(true);
+    expect(preview.hiddenEdges.material).toBeInstanceOf(LineDashedMaterial);
+    preview.setEdgesVisible(false);
+    expect(preview.edges.visible).toBe(false);
+    expect(preview.hiddenEdges.visible).toBe(false);
+    preview.setEdgesVisible(true);
+    expect(preview.hiddenEdges.visible).toBe(true);
+
+    preview.setColorCoded(false);
+    expect(preview.surface.visible).toBe(true);
+    expect(preview.semanticSurface.visible).toBe(false);
+
     preview.addProjectionPlane();
     expect(preview.object.getObjectByName("projection-plane")).toBeDefined();
+  });
+
+  it("colors a semantic planar face as one patch instead of triangle halves", () => {
+    const mesh: CanonicalMesh = {
+      positions: Float32Array.from([
+        0, 0, 0,
+        2, 0, 0,
+        2, 1, 0,
+        0, 1, 0,
+      ]),
+      indices: Uint32Array.from([0, 1, 2, 0, 2, 3]),
+      vertexCount: 4,
+      triangleCount: 2,
+      // Intentionally tag only one triangulation half. The renderer should
+      // propagate the semantic cue across the connected coplanar face patch.
+      groups: [{ featureId: "raised-feature", start: 0, count: 3 }],
+      bounds: { min: [0, 0, 0], max: [2, 1, 0] },
+    };
+    using preview = createLearningPictorialPreview(mesh);
+    const colors = Array.from(preview.semanticSurface.geometry.getAttribute("color").array);
+    expect(colors.slice(0, 9)).toEqual(colors.slice(9, 18));
   });
 });

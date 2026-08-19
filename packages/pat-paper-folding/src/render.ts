@@ -55,8 +55,19 @@ const polygonArea = (polygon: readonly Vec2[]): number => Math.abs(polygon.reduc
   return next === undefined ? sum : sum + point[0] * next[1] - next[0] * point[1];
 }, 0) / 2);
 
-interface VisualPanel {
+export interface PaperVisualPanel {
   readonly polygon: readonly Vec2[];
+}
+
+export interface PaperVisualFoldTransition {
+  readonly foldId: string;
+  readonly line: {
+    readonly point: Vec2;
+    readonly unitDirection: Vec2;
+  };
+  readonly stationaryPolygons: readonly (readonly Vec2[])[];
+  /** Moving polygons are recorded before reflection so the browser can animate the hinge. */
+  readonly movingPolygons: readonly (readonly Vec2[])[];
 }
 
 const panelKey = (polygon: readonly Vec2[]): string => polygon
@@ -65,8 +76,8 @@ const panelKey = (polygon: readonly Vec2[]): string => polygon
   .join("|");
 
 /** Keep the topmost copy when multiple folded layers occupy the exact same polygon. */
-const dedupePanels = (panels: readonly VisualPanel[]): readonly VisualPanel[] => {
-  const result = new Map<string, VisualPanel>();
+const dedupePanels = (panels: readonly PaperVisualPanel[]): readonly PaperVisualPanel[] => {
+  const result = new Map<string, PaperVisualPanel>();
   for (const panel of panels) {
     if (panel.polygon.length < 3 || polygonArea(panel.polygon) <= 1e-6) continue;
     const key = panelKey(panel.polygon);
@@ -76,23 +87,16 @@ const dedupePanels = (panels: readonly VisualPanel[]): readonly VisualPanel[] =>
   return [...result.values()];
 };
 
-/**
- * Apply one visual fold while preserving panel boundaries and layer order.
- *
- * The old renderer merged the result into one convex hull. That erased the
- * folded-over flap boundary and produced diagrams unlike the ADA/golden
- * examples. Here the current sheet remains a stack of polygons: stationary
- * pieces stay below, moving pieces are reflected and their stack order reverses
- * as they fold onto the stationary paper.
- */
-const applyVisualFold = (
-  panels: readonly VisualPanel[],
+const splitVisualFold = (
+  panels: readonly PaperVisualPanel[],
   fold: FoldInstruction,
-): readonly VisualPanel[] => {
+): {
+  readonly stationary: readonly PaperVisualPanel[];
+  readonly moving: readonly PaperVisualPanel[];
+} => {
   const movingPositive = fold.movingSide === 1;
-  const stationary: VisualPanel[] = [];
-  const moving: VisualPanel[] = [];
-
+  const stationary: PaperVisualPanel[] = [];
+  const moving: PaperVisualPanel[] = [];
   for (const panel of panels) {
     const stayingPolygon = clipPolygon(
       panel.polygon,
@@ -103,7 +107,6 @@ const applyVisualFold = (
     if (stayingPolygon.length >= 3 && polygonArea(stayingPolygon) > 1e-6) {
       stationary.push({ polygon: stayingPolygon });
     }
-
     const movingPolygon = clipPolygon(
       panel.polygon,
       fold.line.point,
@@ -111,22 +114,52 @@ const applyVisualFold = (
       movingPositive,
     );
     if (movingPolygon.length >= 3 && polygonArea(movingPolygon) > 1e-6) {
-      moving.push({
-        polygon: movingPolygon.map((point) =>
-          reflectPoint(point, fold.line.point, fold.line.unitDirection)),
-      });
+      moving.push({ polygon: movingPolygon });
     }
   }
+  return { stationary, moving };
+};
 
-  return dedupePanels([...stationary, ...moving.reverse()]);
+/** Apply one visual fold while preserving panel boundaries and layer order. */
+const applyVisualFold = (
+  panels: readonly PaperVisualPanel[],
+  fold: FoldInstruction,
+): readonly PaperVisualPanel[] => {
+  const { stationary, moving } = splitVisualFold(panels, fold);
+  const reflected = moving.map(({ polygon }): PaperVisualPanel => ({
+    polygon: polygon.map((point) => reflectPoint(point, fold.line.point, fold.line.unitDirection)),
+  }));
+  return dedupePanels([...stationary, ...reflected.reverse()]);
+};
+
+/**
+ * Return deterministic panel geometry for every forward fold. This is a visual
+ * projection of the canonical fold program, not a separate folding solver.
+ */
+export const buildPaperVisualFoldTransitions = (
+  folds: readonly FoldInstruction[],
+): readonly PaperVisualFoldTransition[] => {
+  let panels: readonly PaperVisualPanel[] = [{ polygon: ORIGINAL_SQUARE }];
+  const result: PaperVisualFoldTransition[] = [];
+  for (const fold of folds) {
+    const { stationary, moving } = splitVisualFold(panels, fold);
+    result.push({
+      foldId: fold.id,
+      line: { point: fold.line.point, unitDirection: fold.line.unitDirection },
+      stationaryPolygons: stationary.map(({ polygon }) => polygon),
+      movingPolygons: moving.map(({ polygon }) => polygon),
+    });
+    panels = applyVisualFold(panels, fold);
+  }
+  return result;
 };
 
 /** Compute the visible folded-paper panel stack after N completed folds. */
 const computeVisualPanels = (
   folds: readonly FoldInstruction[],
   completedFoldCount: number,
-): readonly VisualPanel[] => {
-  let panels: readonly VisualPanel[] = [{ polygon: ORIGINAL_SQUARE }];
+): readonly PaperVisualPanel[] => {
+  let panels: readonly PaperVisualPanel[] = [{ polygon: ORIGINAL_SQUARE }];
   for (let index = 0; index < completedFoldCount; index += 1) {
     const fold = folds[index];
     if (fold !== undefined) panels = applyVisualFold(panels, fold);
@@ -162,15 +195,7 @@ export const renderHolePattern = (holes: readonly Vec2[], title: string): string
   });
 };
 
-/**
- * Render the scored fold sequence using the DAT/golden visual grammar.
- *
- * Every state panel retains the broken outline of the original square as a
- * spatial reference. Solid white polygons show the current folded paper, with
- * folded-over panels remaining separately outlined rather than being collapsed
- * into one silhouette. The final state adds the punch on top of that same folded
- * panel stack. No synthetic crease line or arrow is drawn.
- */
+/** Render the scored fold sequence using the DAT/golden visual grammar. */
 export const renderFoldStep = (
   folds: readonly FoldInstruction[],
   punches: readonly Vec2[],

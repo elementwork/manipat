@@ -41,18 +41,22 @@ const createCamera = (
   return camera;
 };
 
+/** Canonical FRONT_FRAME: camera at +Y looking along -Y. */
 export const createFrontCamera = (
   options?: OrthographicCameraOptions,
-): OrthographicCamera => createCamera([0, -1, 0], [0, 0, 1], options);
+): OrthographicCamera => createCamera([0, 1, 0], [0, 0, 1], options);
 
+/** Canonical TOP_FRAME: camera at +Z looking along -Z. */
 export const createTopCamera = (
   options?: OrthographicCameraOptions,
 ): OrthographicCamera => createCamera([0, 0, 1], [0, 1, 0], options);
 
+/** Canonical RIGHT_END_FRAME: camera at +X looking along -X. */
 export const createRightEndCamera = (
   options?: OrthographicCameraOptions,
 ): OrthographicCamera => createCamera([1, 0, 0], [0, 0, 1], options);
 
+/** Matches the fixed Aperture pictorial frame used by the SVG generator. */
 export const createIsometricOrthographicCamera = (
   options?: OrthographicCameraOptions,
-): OrthographicCamera => createCamera([1, -1, 1], [0, 0, 1], options);
+): OrthographicCamera => createCamera([-1, -1, 1], [0, 0, 1], options);

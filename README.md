@@ -2,20 +2,20 @@
 
 **ManipAT** is a deterministic, geometry-first generator for original DAT Perceptual Ability Test (PAT) practice questions.
 
-It generates all six PAT categories from mathematical/discrete ground-truth models, solves them automatically, builds controlled distractors, validates every accepted question, and renders printable SVG-based exam material.
+It generates all six PAT categories from mathematical/discrete ground-truth models, solves them automatically, builds controlled distractors, validates every accepted question, renders printable SVG-based exam material, and provides an interactive Three.js runtime for the 3D PAT categories.
 
 > ManipAT is an independent practice-content generator and engineering project. It is not an official DAT product and is not affiliated with the American Dental Association or any test administrator.
 
 ## What it can generate
 
-| Category | CLI name | Default full-set count |
-|---|---|---:|
-| Apertures / Keyhole | `aperture` | 15 |
-| View Recognition / TFE | `view-recognition` | 15 |
-| Angle Discrimination | `angle` | 15 |
-| Paper Folding | `paper-folding` | 15 |
-| Cube Counting | `cube-counting` | 15 |
-| Spatial Relations / Form Development | `form-development` | 15 |
+| Category | CLI name | Default full-set count | Interactive 3D |
+|---|---|---:|---|
+| Apertures / Keyhole | `aperture` | 15 | Yes |
+| View Recognition / TFE | `view-recognition` | 15 | Yes |
+| Angle Discrimination | `angle` | 15 | 2D SVG |
+| Paper Folding | `paper-folding` | 15 | 2D SVG |
+| Cube Counting | `cube-counting` | 15 | Yes |
+| Spatial Relations / Form Development | `form-development` | 15 | Yes |
 
 The default profile produces a **90-question PAT set** with 15 questions per category.
 
@@ -36,7 +36,7 @@ controlled distractors
       ↓
 independent validator
       ↓
-SVG / printable exam
+SVG printable exam + optional Three.js runtime
 ```
 
 That makes the engine:
@@ -45,8 +45,9 @@ That makes the engine:
 - **geometry-first** — rendered pixels are never the source of truth;
 - **automatically solvable** — every question originates from a model the engine can solve;
 - **automatically validated** — ambiguous/degenerate questions are rejected;
-- **offline-first** — generation requires no network access;
+- **offline-first** — generation and the local runtime viewer require no network access;
 - **printable** — output is self-contained Letter-sized HTML with embedded SVG;
+- **interactive** — 3D questions can be explored with orbit/pan/zoom and canonical view presets;
 - **inspectable** — questions retain recipes, fingerprints, difficulty components, validation, and structured explanation data.
 
 ## Requirements
@@ -87,6 +88,25 @@ Validate all embedded questions:
 ```bash
 pnpm dat validate ./output/exam-001.html
 ```
+
+Explore the first 3D question interactively:
+
+```bash
+pnpm dat:view ./output/exam-001.html
+```
+
+Then open `http://127.0.0.1:4173/`. The viewer supports mouse/touch orbit, pan and zoom; 3D/front/top/end camera presets; reset and auto-rotate; surface/edge/ghost controls where applicable; and category-specific explanation highlighting.
+
+Select a specific category:
+
+```bash
+pnpm dat:view ./output/exam-001.html --category aperture
+pnpm dat:view ./output/exam-001.html --category tfe
+pnpm dat:view ./output/exam-001.html --category cubes
+pnpm dat:view ./output/exam-001.html --category form
+```
+
+See [Interactive Three.js Runtime](docs/THREE_RUNTIME.md) for the full runtime contract and browser integration API.
 
 Generate one category:
 
@@ -164,6 +184,12 @@ pnpm dat validate ./output/exam-001.html
 # Inspect question assets and metadata
 pnpm dat inspect ./output/exam-001.html --output ./output/inspect.html
 
+# Explore a generated 3D question interactively
+pnpm dat:view ./output/exam-001.html --category tfe
+
+# Verify 3D reconstruction without starting WebGL
+pnpm dat:view ./output/exam-001.html --category aperture --dry-run
+
 # Reproduce a candidate from seed/type
 pnpm dat regenerate --type aperture --seed debug-seed --difficulty 5
 
@@ -188,7 +214,9 @@ pnpm dat benchmark
 - Letter portrait print CSS;
 - no external scripts, stylesheets, images, or fonts.
 
-Because the question data is embedded, the same HTML file can later be passed back to `validate` and `inspect`.
+Because the question data is embedded, the same HTML file can later be passed back to `validate`, `inspect`, and `dat:view`.
+
+The printable exam intentionally remains static. The Three.js viewer is a separate local runtime that consumes the same canonical question data without compromising print fidelity or making the exam dependent on JavaScript/WebGL.
 
 ## Architecture at a glance
 
@@ -202,13 +230,13 @@ flowchart LR
     D --> E[Validator]
     E --> F[Question bank / batch]
     F --> G[SVG exam HTML]
-    B --> H[Three.js runtime preview]
+    B --> H[Three.js runtime]
 ```
 
 - **Manifold** — robust 3D CSG, projection, mesh/cross-section truth for Aperture/TFE.
 - **Custom discrete/2D models** — Paper Folding, Cube Counting, Angles, Form Development semantics.
 - **Custom SVG** — canonical printable PAT line art.
-- **Three.js** — optional interactive/runtime visualization, never answer truth.
+- **Three.js** — interactive/runtime visualization for Aperture, TFE, Cube Counting and Form Development; never answer truth.
 - **Question bank** — unified API, deduplication, difficulty scheduling, workers, persistence, full-exam assembly.
 
 For the detailed algorithms and engineering history, read [`docs/DESIGN.md`](docs/DESIGN.md).
@@ -220,7 +248,7 @@ packages/core                  deterministic PRNG, math, serialization, shared t
 packages/geometry              Manifold wrapper, topology, projection, silhouettes
 packages/object-generator      procedural Aperture/TFE 3D template banks
 packages/svg                   deterministic SVG construction
-packages/renderer-three        interactive/runtime Three.js adapters
+packages/renderer-three        interactive/runtime Three.js payloads, scenes and browser host
 packages/pat-aperture          Aperture generator/solver/validator/renderer
 packages/pat-view-recognition  TFE generator/solver/validator/renderer
 packages/pat-angle             Angle generator/solver/validator/renderer
@@ -228,14 +256,14 @@ packages/pat-paper-folding     fold-state engine, solver, renderer, validator
 packages/pat-cube-counting     voxel generator/solver/renderer/validator
 packages/pat-form-development  polyhedra, nets, solver, renderer, validator
 packages/question-bank         unified engine, batch/workers, persistence, exam HTML
-packages/cli                   offline command-line interface
+packages/cli                   offline generation CLI and local Three.js viewer server
 ```
 
 ## Quality and verification
 
 The repository uses strict TypeScript, ESLint with zero-warning builds, deterministic fuzz/stress tests, golden fixtures, and a GitHub Actions verification workflow.
 
-The current verified suite includes **58 tests across 22 test files**, including high-volume generation coverage:
+The current verified suite includes **62 tests across 24 test files**, including high-volume generation coverage:
 
 - 10,000 Angle seeds;
 - 1,000 Aperture candidates;
@@ -244,7 +272,9 @@ The current verified suite includes **58 tests across 22 test files**, including
 - 2,000 Form Development questions;
 - Cube Counting solver/shared-figure validation;
 - full CLI/offline/determinism tests;
-- geometry projection/topology regressions.
+- geometry projection/topology regressions;
+- Three.js runtime mesh serialization/polyhedron conversion/voxel highlighting tests;
+- end-to-end persisted-question → Three.js runtime payload reconstruction for all four 3D categories.
 
 CI also generates:
 
@@ -259,13 +289,14 @@ pnpm lint
 pnpm test
 ```
 
-For geometry/rendering changes, also generate fixed-seed HTML and review it visually at print scale. Mathematical validity alone cannot catch every exam-grammar defect.
+For geometry/rendering changes, also generate fixed-seed HTML and review it visually at print scale. For Three.js runtime changes, open `pnpm dat:view` in a real desktop/mobile browser and verify camera presets, orbit/pan/zoom, target view, toggles and explanation highlights. Mathematical validity alone cannot catch every visual interaction defect.
 
 ## Documentation
 
 Start with the document that matches what you are doing:
 
 - **[User Guide](docs/USER_GUIDE.md)** — installation, full CLI reference, generation recipes, difficulty, profiles/config, validation, inspection, printing, troubleshooting.
+- **[Interactive Three.js Runtime](docs/THREE_RUNTIME.md)** — runtime commands, supported categories, controls, reconstruction model, browser API, resource ownership and future interactive features.
 - **[Design & Implementation](docs/DESIGN.md)** — current architecture, geometry/projection algorithms, all six category implementations, major challenges/fixes, testing strategy, tradeoffs, and future roadmap.
 - **[Original Implementation Specification](docs/dev/implementation_spec.md)** — the detailed target specification used to guide construction.
 - **[PAT Format/Layout Specification](docs/dev/DAT_PAT_90Q_Format_Layout_AI_Agent_Spec.md)** — PAT format and layout research.
@@ -277,4 +308,4 @@ The central rule for future work is:
 
 > **Generate a model that can be solved exactly, validate it independently, and only then make it look like an exam question.**
 
-That separation is what allows ManipAT to improve visual fidelity and performance without sacrificing mathematical correctness.
+That separation is what allows ManipAT to improve visual fidelity, interactivity, and performance without sacrificing mathematical correctness.
