@@ -65,7 +65,6 @@ export const renderViewerHtml = (
             <select id="paper-speed" aria-label="Paper animation speed">
               <option value="0.5">0.5×</option>
               <option value="1" selected>1×</option>
-              <option value="1.5">1.5×</option>
               <option value="2">2×</option>
             </select>
           </label>
@@ -164,6 +163,29 @@ const resetToggles = () => {
   edges.checked = true;
   explain.checked = false;
   colorLegend.classList.add("hidden");
+};
+
+const spacePaperOverviewCaptions = () => {
+  const overviewSvg = paperOverview.querySelector(":scope > svg");
+  if (!(overviewSvg instanceof SVGSVGElement)) return;
+  const viewBox = overviewSvg.getAttribute("viewBox")?.trim().split(/\\s+/u).map(Number);
+  if (viewBox !== undefined && viewBox.length === 4 && viewBox.every(Number.isFinite)) {
+    const [minX, minY, width, height] = viewBox;
+    overviewSvg.setAttribute("viewBox", [minX, minY, width, Math.max(height ?? 0, 380)].join(" "));
+  }
+  const topLevel = [...overviewSvg.children];
+  const forwardTitle = topLevel.find((element) =>
+    element.tagName.toLowerCase() === "text" && element.textContent?.trim() === "Forward: fold and punch");
+  const reverseTitle = topLevel.find((element) =>
+    element.tagName.toLowerCase() === "text" && element.textContent?.trim() === "Reverse: unfold to the answer");
+  forwardTitle?.setAttribute("y", "20");
+  reverseTitle?.setAttribute("y", "350");
+  for (const element of topLevel) {
+    if (element === forwardTitle || element === reverseTitle) continue;
+    const y = Number(element.getAttribute("y"));
+    if (!Number.isFinite(y) || y >= 180) continue;
+    element.setAttribute("y", String(y + 22));
+  }
 };
 
 const pointKey = (point) => Number(point[0]).toFixed(6) + "," + Number(point[1]).toFixed(6);
@@ -277,7 +299,7 @@ const buildPaperFrames = (payload) => {
 
 const currentPaperSpeed = () => {
   const speed = Number(paperSpeed.value);
-  return Number.isFinite(speed) && speed > 0 ? speed : 1;
+  return Number.isFinite(speed) && speed > 0 ? speed / 3 : 1 / 3;
 };
 
 const syncPaperPlaybackControls = () => {
@@ -413,6 +435,7 @@ const mountPaper = (payload) => {
   viewControls.classList.add("hidden");
   target.classList.add("hidden");
   paperOverview.innerHTML = payload.overviewSvg;
+  spacePaperOverviewCaptions();
   renderPaperFrame();
   status.textContent = "Paper overview and interactive forward → reverse → rewind timeline ready";
   status.style.color = "";
