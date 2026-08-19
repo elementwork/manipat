@@ -6,6 +6,7 @@ export * from "./errors.js";
 export * from "./fingerprints.js";
 export * from "./runtime-models.js";
 export * from "./serialization.js";
+export * from "./solutions.js";
 export * from "./storage.js";
 export * from "./types.js";
 export * from "./workers.js";

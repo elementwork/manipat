@@ -9,6 +9,7 @@ import {
   ConfigurationError,
   GenerationTargetError,
   PAT_CATEGORIES,
+  augmentExamHtmlWithSolutions,
   createPatEngine,
   extractQuestionAssets,
   generateBatch,
@@ -22,6 +23,7 @@ import {
   type DifficultyBand,
   type DifficultyMix,
   type DifficultyRequest,
+  type ExamSolutionMode,
 } from "@manipat/question-bank";
 import { createVoxelInstancedRender } from "@manipat/renderer-three";
 
@@ -82,6 +84,11 @@ const category = (value: string): PatQuestionType => {
   return resolved;
 };
 
+const solutionMode = (value: string): ExamSolutionMode => {
+  if (value === "none" || value === "key" || value === "full") return value;
+  throw new CliError(`Invalid solution mode: ${value}; expected none, key, or full`, EXIT.arguments);
+};
+
 const difficultyBand = (value: string): DifficultyBand => {
   const named = DIFFICULTY_NAMES[value.toLowerCase()];
   const numeric = Number(value);
@@ -130,6 +137,8 @@ interface ConfigFile {
   readonly difficulty?: number | string;
   readonly categories?: Readonly<Record<string, number | { readonly count: number; readonly difficulty?: number | string }>>;
   readonly formats?: readonly string[];
+  readonly solutions?: ExamSolutionMode;
+  /** Backward-compatible alias for solutions: full. */
   readonly includeExplanations?: boolean;
   readonly includeMeshes?: boolean;
   readonly offline?: boolean;
@@ -173,6 +182,10 @@ const generateCommand = async (parsed: ParsedArguments): Promise<void> => {
   if (formats.length !== 1 || formats[0] !== "html") {
     throw new CliError("Standalone generation supports only --formats html", EXIT.config);
   }
+  const requestedSolutions = flag(parsed, "solutions")
+    ?? config.solutions
+    ?? ((hasFlag(parsed, "include-explanations") || config.includeExplanations === true) ? "full" : "none");
+  const solutions = solutionMode(requestedSolutions);
   if (hasFlag(parsed, "include-meshes") || config.includeMeshes === true) {
     throw new CliError("Mesh persistence is not enabled; use the Three.js-compatible runtime render API", EXIT.config);
   }
@@ -241,7 +254,7 @@ const generateCommand = async (parsed: ParsedArguments): Promise<void> => {
   }
   try {
     await mkdir(path.dirname(output), { recursive: true });
-    await writeFile(output, renderExamHtml(result.questions, {
+    const examHtml = renderExamHtml(result.questions, {
       seed,
       profile: mode === "set" ? path.basename(profileFilename) : mode,
       difficulty: mixFlag ?? rawDifficulty,
@@ -250,12 +263,20 @@ const generateCommand = async (parsed: ParsedArguments): Promise<void> => {
       requestedCategoryCounts: categories,
       acceptedCategoryCounts: result.stats.acceptedByCategory,
       difficultyDistribution: result.stats.acceptedByDifficulty,
-    }), "utf8");
+    });
+    await writeFile(
+      output,
+      augmentExamHtmlWithSolutions(examHtml, result.questions, solutions),
+      "utf8",
+    );
   } catch (error) {
     throw new CliError(`Could not write output: ${error instanceof Error ? error.message : String(error)}`, EXIT.output);
   }
   progress(result, hasFlag(parsed, "quiet"), hasFlag(parsed, "json-progress"));
-  if (!hasFlag(parsed, "quiet")) process.stdout.write(`Output: ${output}\n`);
+  if (!hasFlag(parsed, "quiet")) {
+    process.stdout.write(`Output: ${output}\n`);
+    process.stdout.write(`Solutions: ${solutions}\n`);
+  }
 };
 
 const validateCommand = async (parsed: ParsedArguments): Promise<void> => {

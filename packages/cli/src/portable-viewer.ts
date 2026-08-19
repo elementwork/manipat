@@ -3,12 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PatQuestionType } from "@manipat/core";
 import { readPersistedQuestions, type AnyPatQuestion } from "@manipat/question-bank";
+import { buildPortableStudyExam } from "./study-exam.js";
 import type { ViewerPayload } from "./viewer-payload.js";
 import { renderViewerHtml } from "./viewer-server.js";
 import { buildVisualizationPayload, visualizableCategories } from "./visualize.js";
 
 const PORTABLE_RUNTIME_SPECIFIER = "@manipat/runtime/question-viewer.js";
-const PORTABLE_MODE_META = '<meta name="manipat-viewer-mode" content="portable">';
+const PORTABLE_MODE_META = '<meta name="manipat-viewer-mode" content="portable-viewer">';
 
 type EmbeddedScopeKind = "runtime" | "three-build" | "three-addons";
 
@@ -212,6 +213,19 @@ export const buildPortableViewerDocument = async (
   const runtimeImport = 'from "/runtime/index.js";';
   if (!html.includes(runtimeImport)) throw new Error("Viewer HTML runtime import marker is missing");
   html = html.replace(runtimeImport, `from "${PORTABLE_RUNTIME_SPECIFIER}";`);
+
+  const messageMarker = 'window.addEventListener("beforeunload", () => { cancelPaperPlayback(); viewer?.dispose(); }, { once: true });';
+  if (!html.includes(messageMarker)) throw new Error("Viewer HTML message-injection marker is missing");
+  html = html.replace(messageMarker, `window.addEventListener("message", (event) => {
+  const message = event.data;
+  if (message === null || typeof message !== "object" || message.type !== "manipat-select-question" || typeof message.questionId !== "string") return;
+  const globalIndex = payloads.findIndex((payload) => payload.questionId === message.questionId);
+  if (globalIndex < 0) return;
+  categorySelect.value = "all";
+  rebuildQuestionList(globalIndex);
+});
+${messageMarker}`);
+
   html = html.replace(
     "<title>ManipAT Interactive Viewer</title>",
     `<title>ManipAT Portable Interactive Viewer</title>\n${PORTABLE_MODE_META}`,
@@ -251,6 +265,8 @@ const categoryFromText = (value: string): PatQuestionType => {
     keyhole: "aperture",
     "view-recognition": "view-recognition",
     tfe: "view-recognition",
+    angle: "angle",
+    angles: "angle",
     "paper-folding": "paper-folding",
     paper: "paper-folding",
     "hole-punching": "paper-folding",
@@ -261,13 +277,11 @@ const categoryFromText = (value: string): PatQuestionType => {
     form: "form-development",
   };
   const resolved = aliases[value];
-  if (resolved === undefined) {
-    throw new RangeError(`Portable visualization supports: ${visualizableCategories().join(", ")}`);
-  }
+  if (resolved === undefined) throw new RangeError(`Unknown PAT category: ${value}`);
   return resolved;
 };
 
-const selectQuestions = (
+const selectInteractiveQuestions = (
   questions: readonly AnyPatQuestion[],
   questionId: string | undefined,
   categoryText: string | undefined,
@@ -276,35 +290,44 @@ const selectQuestions = (
   if (questionId !== undefined) {
     const question = questions.find(({ id }) => id === questionId);
     if (question === undefined) throw new RangeError(`Question id not found: ${questionId}`);
-    if (!supported.has(question.type)) {
-      throw new RangeError(`${question.type} is not supported by the portable interactive viewer`);
-    }
-    return [question];
+    return supported.has(question.type) ? [question] : [];
   }
 
   const requestedCategory = categoryText === undefined ? undefined : categoryFromText(categoryText);
-  const selected = questions.filter((question) =>
+  return questions.filter((question) =>
     supported.has(question.type)
       && (requestedCategory === undefined || question.type === requestedCategory));
-  if (selected.length === 0) {
-    throw new RangeError(
-      requestedCategory === undefined
-        ? "Input contains no question available for portable interactive visualization"
-        : `Input contains no ${requestedCategory} question available for portable interactive visualization`,
-    );
-  }
-  return selected;
 };
 
 export const portableViewerCommand = async (
   options: PortableViewerCommandOptions,
 ): Promise<PortableViewerWriteResult> => {
-  const questions = await readPersistedQuestions(path.resolve(options.target));
-  const selected = selectQuestions(questions, options.questionId, options.category);
+  const target = path.resolve(options.target);
+  const [sourceHtml, questions] = await Promise.all([
+    readFile(target, "utf8"),
+    readPersistedQuestions(target),
+  ]);
+  const selected = selectInteractiveQuestions(questions, options.questionId, options.category);
   const payloads: ViewerPayload[] = [];
   for (const question of selected) payloads.push(await buildVisualizationPayload(question));
-  const output = options.output ?? defaultPortableViewerPath(options.target);
-  const result = await writePortableViewer(payloads, output);
+
+  const viewerDocument = payloads.length === 0
+    ? { html: "", moduleCount: 0 }
+    : await buildPortableViewerDocument(payloads);
+  const studyHtml = buildPortableStudyExam(
+    sourceHtml,
+    questions,
+    new Set(selected.map(({ id }) => id)),
+    viewerDocument.html,
+  );
+  const outputPath = path.resolve(options.output ?? defaultPortableViewerPath(options.target));
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, studyHtml, "utf8");
+  const result = {
+    outputPath,
+    bytes: Buffer.byteLength(studyHtml, "utf8"),
+    moduleCount: viewerDocument.moduleCount,
+  };
   process.stdout.write(`${result.outputPath}\n`);
   return result;
 };

@@ -74,8 +74,9 @@ describe("portable interactive viewer", () => {
     expect(imports["@manipat/runtime/question-viewer.js"]).toMatch(/^data:text\/javascript;base64,/u);
     expect(imports.three).toMatch(/^data:text\/javascript;base64,/u);
     expect(imports["three/addons/controls/OrbitControls.js"]).toMatch(/^data:text\/javascript;base64,/u);
-    expect(document.html).toContain('<meta name="manipat-viewer-mode" content="portable">');
+    expect(document.html).toContain('<meta name="manipat-viewer-mode" content="portable-viewer">');
     expect(document.html).toContain("runtime dependencies are embedded; no local web server is required");
+    expect(document.html).toContain("manipat-select-question");
     expect(document.html).not.toContain('from "/runtime/index.js"');
     expect(document.html).not.toContain('"/vendor/three/three.module.js"');
     expect(document.html).not.toContain('"/vendor/three/addons/"');
