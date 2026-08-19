@@ -49,6 +49,17 @@ jobs:
             --output ./output/ci-full-set.html
           test -s ./output/ci-full-set.html
 
+      - name: Portable interactive viewer smoke
+        run: |
+          pnpm dat:view:portable ./output/ci-full-set.html \
+            --output ./output/ci-full-set.interactive.html
+          test -s ./output/ci-full-set.interactive.html
+          grep -q 'name="manipat-viewer-mode" content="portable"' ./output/ci-full-set.interactive.html
+          if grep -q 'from "/runtime/index.js"' ./output/ci-full-set.interactive.html; then
+            echo "Portable viewer retained a development-server runtime import" >&2
+            exit 1
+          fi
+
       - name: Hard-band category smoke tests
         run: |
           set -euxo pipefail
