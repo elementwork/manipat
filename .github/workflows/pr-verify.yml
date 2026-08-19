@@ -48,6 +48,44 @@ jobs:
             --seed ci-full-set \
             --output ./output/ci-full-set.html
           test -s ./output/ci-full-set.html
+          grep -q 'answer-sheet answer-sheet-single-page' ./output/ci-full-set.html
+          grep -q 'answer-sheet-single-page{break-inside:avoid' ./output/ci-full-set.html
+          if grep -q 'Answer Key' ./output/ci-full-set.html; then
+            echo "Default exam unexpectedly exposed solutions" >&2
+            exit 1
+          fi
+
+      - name: Printable solutions smoke
+        run: |
+          pnpm dat generate category angle \
+            --count 1 \
+            --difficulty 1 \
+            --offline \
+            --seed ci-solutions \
+            --solutions full \
+            --output ./output/ci-solutions-full.html
+          test -s ./output/ci-solutions-full.html
+          grep -q 'Answer Key' ./output/ci-solutions-full.html
+          grep -q 'Solutions &amp; Explanations' ./output/ci-solutions-full.html
+          grep -q 'Measured angles' ./output/ci-solutions-full.html
+
+      - name: Portable study exam smoke
+        run: |
+          pnpm dat:view:portable ./output/ci-full-set.html \
+            --output ./output/ci-full-set.interactive.html
+          test -s ./output/ci-full-set.interactive.html
+          grep -q 'name="manipat-viewer-mode" content="portable"' ./output/ci-full-set.interactive.html
+          grep -q 'Answer Sheet' ./output/ci-full-set.interactive.html
+          grep -q 'answer-sheet answer-sheet-single-page' ./output/ci-full-set.interactive.html
+          grep -q 'manipat-exam-data' ./output/ci-full-set.interactive.html
+          grep -q 'Study Tools' ./output/ci-full-set.interactive.html
+          grep -q 'Check Answer' ./output/ci-full-set.interactive.html
+          grep -q 'Show Explanation' ./output/ci-full-set.interactive.html
+          grep -q 'Interactive Hint' ./output/ci-full-set.interactive.html
+          if grep -q 'from "/runtime/index.js"' ./output/ci-full-set.interactive.html; then
+            echo "Portable study exam retained a development-server runtime import" >&2
+            exit 1
+          fi
 
       - name: Hard-band category smoke tests
         run: |

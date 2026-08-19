@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "dat-pat": "./dist/index.js",
-    "dat-pat-viewer": "./dist/visualize-bin.js"
+    "dat-pat-viewer": "./dist/visualize-bin.js",
+    "dat-pat-portable-viewer": "./dist/portable-bin.js"
   },
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "scripts": { "build": "tsc -b", "test": "vitest run" },

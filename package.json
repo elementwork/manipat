@@ -12,6 +12,8 @@
     "clean": "tsc -b --clean",
     "dat": "node packages/cli/dist/index.js",
     "dat:view": "node packages/cli/dist/visualize-bin.js",
+    "dat:view:dev": "node packages/cli/dist/visualize-bin.js",
+    "dat:view:portable": "node packages/cli/dist/portable-bin.js",
     "lint": "eslint . --max-warnings=0",
     "test": "pnpm build && vitest run",
     "test:watch": "vitest"
