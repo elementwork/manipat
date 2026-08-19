@@ -47,17 +47,33 @@ The edge model is constructed from exposed cube-face boundaries rather than from
 
 Paper Punching is interactive without being forced into Three.js. Its truth model remains the discrete 2D paper-layer state used by the generator and validator.
 
-The browser viewer reconstructs a deterministic explanation from the persisted folds and punches:
+The viewer reconstructs a deterministic explanation from the persisted folds and punches. The Paper workspace is intentionally presented as **one page** rather than separate modes:
 
-1. show the original fold/punch sequence;
-2. start at the punched folded stack;
-3. reverse the final fold;
-4. continue reversing folds in order;
-5. finish at the fully unfolded solved hole pattern.
+- **Left:** the complete static **All steps** overview SVG, showing the forward fold/punch sequence and reverse solution together.
+- **Right:** one interactive walkthrough that combines manual step-by-step study and animated folding/unfolding.
 
-Each reverse-unfold step derives its state from the same canonical `sourceLayerId`, `currentCenter`, fold instruction, and punch-layer data used by the solver. No SVG pixel analysis is involved.
+### Unified interactive timeline
+
+The right-side timeline uses one ordered set of canonical states:
+
+1. original sheet;
+2. first forward fold through the last forward fold;
+3. punched folded stack;
+4. first reverse-unfold step through the fully unfolded solved pattern.
+
+**Previous step** and **Next step** move through those states discretely. **Play** animates from the current position through the remaining forward/reverse sequence and then **rewinds back to the original sheet**. **Pause** freezes the active animation and **Play** resumes it. A speed selector provides `0.5×`, `1×`, `1.5×`, and `2×` playback.
+
+The automatic playback sequence is therefore:
+
+```text
+forward folds → punch → reverse unfolds → solved pattern → rewind → start
+```
+
+Each forward/reverse fold animation is derived from the same clipped paper panels and fold axis used by the canonical renderer. Reverse animation reuses the corresponding forward fold geometry in the opposite direction; it does not introduce a second solver.
 
 ### Explanation grammar
+
+At reverse-unfold endpoints:
 
 - dark circles: current/existing hole positions;
 - coral circles: newly exposed positions after the current reverse fold;
@@ -65,19 +81,17 @@ Each reverse-unfold step derives its state from the same canonical `sourceLayerI
 - dashed blue line: the exact fold/reflection axis being reversed;
 - text: number of punched layers affected by that reverse fold, visible hole count, and remaining applied folds.
 
-The initial punch step also reports how many paper layers each punch penetrated.
+The punch state also reports how many paper layers each punch penetrated.
 
-### Overview and fold animation
+### Fold animation model
 
-The Paper Punching viewer also provides a single self-contained overview SVG that lays out the entire forward fold/punch sequence and the reverse-unfold explanation in one diagram. It is generated from ManipAT's own canonical SVG/state data and does not copy third-party page design.
-
-For motion study, each fold can be animated from the same clipped paper panels used by the canonical renderer. A top-view hinge animation scales a moving point's signed perpendicular displacement from the fold line by `cos(pi * t)`:
+For motion study, each fold is animated from the same clipped paper panels used by the canonical renderer. A top-view hinge animation scales a moving point's signed perpendicular displacement from the fold line by `cos(pi * t)`:
 
 - `t = 0`: original flap position;
 - `t = 0.5`: flap is edge-on and collapses to the hinge line in top projection;
 - `t = 1`: fully reflected folded position.
 
-This is a deterministic visualization of the existing fold state, not a physics solver. Reduced-motion browser preferences should skip the tween and show discrete states.
+Reverse unfolding applies the same animation from `t = 1` back to `t = 0`. Rewind reverses the already-defined state transitions back to the initial sheet. This remains a deterministic visualization of the existing fold state, not a physics solver. Reduced-motion browser preferences skip the tween and show discrete states.
 
 ## Viewer usage
 

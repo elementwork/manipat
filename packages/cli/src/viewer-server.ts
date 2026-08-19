@@ -17,7 +17,9 @@ export const renderViewerHtml = (
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ManipAT Interactive Viewer</title>
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-nav button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.color-legend{position:absolute;right:.75rem;top:.75rem;z-index:3;background:rgba(255,255,255,.94);border:1px solid #d8dde3;border-radius:.55rem;padding:.55rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.72rem;color:#58616a;pointer-events:none}.color-legend-title{font-weight:650;color:#303842;margin-bottom:.3rem}.color-legend-row{display:flex;align-items:center;gap:.35rem;margin:.16rem 0}.swatch{width:.72rem;height:.72rem;border-radius:.2rem;border:1px solid rgba(32,36,42,.18)}.swatch.body{background:#d9dde3}.swatch.raised{background:#b9d7f0}.swatch.recess{background:#f0b7aa}.swatch.terminal{background:#f2d38b}.color-legend-note{max-width:15rem;margin-top:.35rem;line-height:1.25;color:#777f88}.paper-modebar{display:flex;gap:.4rem;justify-content:center;align-items:center;flex-wrap:wrap}.paper-modebar button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .7rem;color:#20242a}.paper-modebar button.active{background:#e9eef4;border-color:#8796a7}.paper-overview{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.65rem;overflow:auto;min-height:0}.paper-overview svg{display:block;width:max(700px,100%);height:auto}.paper-step-view{display:grid;grid-template-rows:auto 1fr auto;gap:.8rem;min-height:0}.paper-animation-view{display:grid;grid-template-rows:1fr auto;gap:.7rem;min-height:0}.paper-animation-svg{display:flex;align-items:center;justify-content:center;min-height:300px;background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.6rem}.paper-animation-svg svg{width:min(70vw,560px);max-height:62vh;height:auto;display:block}.paper-animation-controls{display:flex;gap:.55rem;align-items:center;justify-content:center;flex-wrap:wrap}.paper-animation-controls button{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .7rem}.paper-animation-status{font-size:.82rem;color:#59616a;min-width:11rem;text-align:center}.paper-guide{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr;gap:.8rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-sequence{display:flex;gap:.6rem;overflow-x:auto;padding:.15rem .1rem .45rem}.paper-sequence-item{flex:0 0 112px;background:#fff;border:1px solid #dde1e6;border-radius:.55rem;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-sequence-item svg{width:100%;height:auto;display:block}.paper-sequence-label{text-align:center;font-size:.72rem;color:#636b74;margin-top:.2rem}.paper-main{display:grid;grid-template-columns:minmax(260px,560px) minmax(220px,330px);gap:1rem;align-items:center;justify-content:center;min-height:0}.paper-svg{display:flex;align-items:center;justify-content:center;min-height:280px}.paper-svg svg{width:min(70vw,520px);max-height:58vh;height:auto;display:block}.paper-card{background:#fff;border:1px solid #dde1e6;border-radius:.7rem;padding:.85rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}.paper-step-title{font-weight:650;margin-bottom:.45rem}.paper-detail{font-size:.88rem;line-height:1.45;color:#3e4650}.paper-stats{font-size:.8rem;line-height:1.5;color:#636b74;margin-top:.7rem;padding-top:.6rem;border-top:1px solid #eceff2}.paper-legend{font-size:.75rem;color:#636b74;margin-top:.65rem}.paper-legend span{display:inline-flex;align-items:center;gap:.25rem;margin-right:.6rem}.dot{width:.62rem;height:.62rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.paper-nav{display:flex;gap:.55rem;align-items:center;justify-content:center;padding:.2rem}.paper-progress{min-width:7rem;text-align:center;font-size:.82rem;color:#59616a}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-nav button{font-size:.78rem;padding:.4rem .5rem}.paper-main{grid-template-columns:1fr;align-items:start}.paper-svg svg{width:min(92vw,480px);max-height:none}.paper-card{max-width:520px;width:100%;margin:0 auto}.paper-sequence-item{flex-basis:94px}}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#20242a;background:#f5f6f8}*{box-sizing:border-box}body{margin:0;min-height:100vh}.shell{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}.bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;padding:.7rem .9rem;background:#fff;border-bottom:1px solid #d9dde3}.bar.secondary{border-top:1px solid #d9dde3;border-bottom:0}.heading{margin-right:auto;min-width:15rem}.title{font-weight:650}.meta{font-size:.8rem;color:#636b74}.controls,.navigator{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-controls button,.paper-controls select{font:inherit;font-size:.82rem;border:1px solid #c8cdd3;border-radius:.5rem;background:#fff;padding:.42rem .62rem;color:#20242a}.controls button:hover,.action:hover,.navigator button:hover,.paper-controls button:hover{background:#f0f2f4}.navigator select{max-width:21rem}.navigator .question{max-width:28rem}.toggle{display:flex;gap:.35rem;align-items:center}.viewer{position:relative;min-height:420px;background:#f8f9fa}.canvas{position:absolute;inset:0}.hint{position:absolute;left:.75rem;bottom:.75rem;background:rgba(255,255,255,.9);padding:.4rem .55rem;border-radius:.4rem;font-size:.75rem;color:#59616a;pointer-events:none}.status{font-size:.78rem;color:#59616a;margin-left:auto}.hidden{display:none!important}.color-legend{position:absolute;right:.75rem;top:.75rem;z-index:3;background:rgba(255,255,255,.94);border:1px solid #d8dde3;border-radius:.55rem;padding:.55rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.72rem;color:#58616a;pointer-events:none}.color-legend-title{font-weight:650;color:#303842;margin-bottom:.3rem}.color-legend-row{display:flex;align-items:center;gap:.35rem;margin:.16rem 0}.swatch{width:.72rem;height:.72rem;border-radius:.2rem;border:1px solid rgba(32,36,42,.18)}.swatch.body{background:#d9dde3}.swatch.raised{background:#b9d7f0}.swatch.recess{background:#f0b7aa}.swatch.terminal{background:#f2d38b}.color-legend-note{max-width:15rem;margin-top:.35rem;line-height:1.25;color:#777f88}
+.paper-guide{position:absolute;inset:0;display:grid;grid-template-columns:minmax(360px,1.08fr) minmax(360px,.92fr);gap:.9rem;padding:.8rem;overflow:auto;background:#f8f9fa}.paper-panel{background:#fff;border:1px solid #dde1e6;border-radius:.72rem;box-shadow:0 1px 2px rgba(0,0,0,.03);padding:.75rem;min-width:0}.paper-left{display:grid;grid-template-rows:auto 1fr;gap:.55rem}.paper-right{display:grid;grid-template-rows:auto minmax(300px,1fr) auto auto;gap:.65rem}.paper-panel-title{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.9rem;font-weight:650;color:#303842}.paper-panel-subtitle{font-size:.72rem;font-weight:400;color:#737b84}.paper-overview{display:flex;align-items:flex-start;justify-content:center;overflow:auto;min-height:0}.paper-overview svg{display:block;width:100%;height:auto;max-height:76vh}.paper-animation-view{display:flex;align-items:center;justify-content:center;min-height:300px;border:1px solid #eceff2;border-radius:.6rem;background:#fafbfc;padding:.5rem;overflow:hidden}.paper-animation-view svg{display:block;width:min(100%,560px);height:auto;max-height:55vh}.paper-controls{display:flex;gap:.4rem;align-items:center;justify-content:center;flex-wrap:wrap}.paper-controls label{display:flex;gap:.35rem;align-items:center;font-size:.78rem;color:#59616a}.paper-controls button:disabled{opacity:.45;cursor:not-allowed}.paper-progress{font-size:.78rem;color:#59616a;min-width:8.5rem;text-align:center}.paper-card{background:#fbfcfd;border:1px solid #eceff2;border-radius:.6rem;padding:.72rem}.paper-step-title{font-weight:650;margin-bottom:.4rem}.paper-detail{font-size:.84rem;line-height:1.42;color:#3e4650}.paper-stats{font-size:.77rem;line-height:1.45;color:#636b74;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #eceff2}.paper-legend{font-size:.72rem;color:#636b74;margin-top:.5rem}.paper-legend span{display:inline-flex;align-items:center;gap:.24rem;margin-right:.55rem}.dot{width:.6rem;height:.6rem;border-radius:50%;display:inline-block}.dot.old{background:#20242a}.dot.new{background:#c85f4b}.dot.prior{background:#fff;border:1px dashed #8a929b}.phase-badge{display:inline-flex;align-items:center;border-radius:999px;padding:.16rem .45rem;background:#edf1f5;color:#53606d;font-size:.7rem;font-weight:600}
+@media(max-width:900px){.paper-guide{grid-template-columns:1fr}.paper-overview svg{max-height:none}.paper-animation-view svg{max-height:none}.paper-right{grid-template-rows:auto minmax(280px,auto) auto auto}}@media(max-width:760px){.shell{grid-template-rows:auto auto minmax(62vh,1fr) auto}.heading{width:100%;min-width:0;margin:0}.navigator{width:100%}.navigator select{max-width:100%;flex:1}.navigator .question{max-width:100%;width:100%;order:3;flex-basis:100%}.controls button,.action,.toggle,.navigator button,.navigator select,.paper-controls button,.paper-controls select{font-size:.78rem;padding:.4rem .5rem}.paper-guide{padding:.55rem;gap:.65rem}.paper-panel{padding:.6rem}.color-legend{right:.45rem;top:.45rem;max-width:12.5rem}}
 </style>
 <script type="importmap">{"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}</script>
 </head>
@@ -47,37 +49,35 @@ export const renderViewerHtml = (
       <div class="color-legend-note">Whole-surface learning cues only. Uncertain geometry stays neutral.</div>
     </div>
     <section id="paper-guide" class="paper-guide hidden" aria-label="Paper punching guided explanation">
-      <div class="paper-modebar">
-        <button id="paper-mode-overview" type="button">All steps</button>
-        <button id="paper-mode-steps" type="button">Step-by-step</button>
-        <button id="paper-mode-animation" type="button">Animate folds</button>
-      </div>
-      <div id="paper-overview" class="paper-overview"></div>
-      <div id="paper-step-view" class="paper-step-view hidden">
-        <div id="paper-sequence" class="paper-sequence"></div>
-        <div class="paper-main">
-          <div id="paper-svg" class="paper-svg"></div>
-          <aside class="paper-card">
-            <div id="paper-step-title" class="paper-step-title"></div>
-            <div id="paper-detail" class="paper-detail"></div>
-            <div id="paper-stats" class="paper-stats"></div>
-            <div class="paper-legend"><span><i class="dot old"></i>existing</span><span><i class="dot new"></i>new after unfold</span><span><i class="dot prior"></i>prior stacked position</span></div>
-          </aside>
-        </div>
-        <div class="paper-nav">
-          <button id="paper-previous" type="button">← Previous step</button>
+      <section class="paper-panel paper-left" aria-label="All paper punching steps">
+        <div class="paper-panel-title">All steps <span class="paper-panel-subtitle">Forward folds and reverse solution</span></div>
+        <div id="paper-overview" class="paper-overview"></div>
+      </section>
+      <section class="paper-panel paper-right" aria-label="Interactive paper punching walkthrough">
+        <div class="paper-panel-title">Interactive walkthrough <span id="paper-phase" class="phase-badge">Start</span></div>
+        <div id="paper-animation-view" class="paper-animation-view"></div>
+        <div class="paper-controls" aria-label="Paper animation controls">
+          <button id="paper-previous-step" type="button">← Previous step</button>
+          <button id="paper-next-step" type="button">Next step →</button>
+          <button id="paper-play" type="button">▶ Play</button>
+          <button id="paper-pause" type="button" disabled>Pause</button>
+          <label>Speed
+            <select id="paper-speed" aria-label="Paper animation speed">
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </label>
           <span id="paper-progress" class="paper-progress"></span>
-          <button id="paper-next" type="button">Next step →</button>
         </div>
-      </div>
-      <div id="paper-animation-view" class="paper-animation-view hidden">
-        <div id="paper-animation-svg" class="paper-animation-svg"></div>
-        <div class="paper-animation-controls">
-          <button id="paper-animation-play" type="button">▶ Play folds</button>
-          <button id="paper-animation-replay" type="button">↻ Replay current fold</button>
-          <span id="paper-animation-status" class="paper-animation-status"></span>
-        </div>
-      </div>
+        <aside class="paper-card">
+          <div id="paper-step-title" class="paper-step-title"></div>
+          <div id="paper-detail" class="paper-detail"></div>
+          <div id="paper-stats" class="paper-stats"></div>
+          <div class="paper-legend"><span><i class="dot old"></i>existing</span><span><i class="dot new"></i>new after unfold</span><span><i class="dot prior"></i>prior stacked position</span></div>
+        </aside>
+      </section>
     </section>
     <div id="hint" class="hint">Drag to rotate · wheel/pinch to zoom · right-drag/two-finger drag to pan</div>
   </main>
@@ -96,30 +96,25 @@ export const renderViewerHtml = (
 <script id="payloads" type="application/json">${escapedPayloadJson(payloads)}</script>
 <script type="module">
 import { createQuestionRuntimeViewer } from "/runtime/index.js";
+
 const payloads = JSON.parse(document.getElementById("payloads").textContent);
 const labels = { "isometric":"3D", "front":"Front", "top":"Top", "right-end":"End" };
 const categoryLabels = { aperture:"Aperture", "view-recognition":"TFE", "paper-folding":"Paper Punching", "cube-counting":"Cube Counting", "form-development":"Form Development" };
 const canvas = document.getElementById("canvas");
 const colorLegend = document.getElementById("color-legend");
 const paperGuide = document.getElementById("paper-guide");
-const paperModeOverview = document.getElementById("paper-mode-overview");
-const paperModeSteps = document.getElementById("paper-mode-steps");
-const paperModeAnimation = document.getElementById("paper-mode-animation");
 const paperOverview = document.getElementById("paper-overview");
-const paperStepView = document.getElementById("paper-step-view");
 const paperAnimationView = document.getElementById("paper-animation-view");
-const paperAnimationSvg = document.getElementById("paper-animation-svg");
-const paperAnimationPlay = document.getElementById("paper-animation-play");
-const paperAnimationReplay = document.getElementById("paper-animation-replay");
-const paperAnimationStatus = document.getElementById("paper-animation-status");
-const paperSequence = document.getElementById("paper-sequence");
-const paperSvg = document.getElementById("paper-svg");
+const paperPhase = document.getElementById("paper-phase");
+const paperPreviousStep = document.getElementById("paper-previous-step");
+const paperNextStep = document.getElementById("paper-next-step");
+const paperPlay = document.getElementById("paper-play");
+const paperPause = document.getElementById("paper-pause");
+const paperSpeed = document.getElementById("paper-speed");
+const paperProgress = document.getElementById("paper-progress");
 const paperStepTitle = document.getElementById("paper-step-title");
 const paperDetail = document.getElementById("paper-detail");
 const paperStats = document.getElementById("paper-stats");
-const paperPrevious = document.getElementById("paper-previous");
-const paperNext = document.getElementById("paper-next");
-const paperProgress = document.getElementById("paper-progress");
 const hint = document.getElementById("hint");
 const title = document.getElementById("title");
 const meta = document.getElementById("meta");
@@ -143,12 +138,14 @@ const colorWrap = document.getElementById("color-wrap");
 const ghostWrap = document.getElementById("ghost-wrap");
 const edgesWrap = document.getElementById("edges-wrap");
 const explainWrap = document.getElementById("explain-wrap");
+
 let viewer;
 let paperPayload;
-let paperStep = 0;
-let paperMode = "overview";
-let paperAnimationIndex = 0;
-let paperAnimationToken = 0;
+let paperFrames = [];
+let paperFrameIndex = 0;
+let paperPlaybackToken = 0;
+let paperPlaybackActive = false;
+let paperPlaying = false;
 let filteredIndices = [];
 let activePosition = 0;
 
@@ -181,7 +178,7 @@ const blankSheetSvg = () => {
 };
 
 const paperSvgWithOverlays = (step) => {
-  let base = step.baseSvg ?? blankSheetSvg();
+  const base = step.baseSvg ?? blankSheetSvg();
   let overlays = "";
   if (step.foldLine !== undefined) {
     const point = step.foldLine.point;
@@ -197,28 +194,6 @@ const paperSvgWithOverlays = (step) => {
   }
   const closing = base.lastIndexOf("</svg>");
   return closing >= 0 ? base.slice(0, closing) + overlays + "</svg>" : base;
-};
-
-const renderPaperStep = () => {
-  if (paperPayload === undefined) return;
-  const step = paperPayload.steps[paperStep];
-  if (step === undefined) return;
-  paperSvg.innerHTML = paperSvgWithOverlays(step);
-  paperStepTitle.textContent = step.title;
-  if (step.kind === "punch") {
-    const punchSummary = paperPayload.punches.map((punch, index) => "Punch " + String(index + 1) + ": " + String(punch.layerCount) + " layer" + (punch.layerCount === 1 ? "" : "s")).join(" · ");
-    paperDetail.textContent = "Start from the punched folded stack. Each punch pierces every paper layer directly underneath it. " + punchSummary + ".";
-  } else {
-    let detail = "Reverse this fold across the dashed axis. " + String(step.affectedLayerCount) + " punched layer" + (step.affectedLayerCount === 1 ? " moves" : "s move") + " with the flap.";
-    if (step.newHoles.length > 0) detail += " This exposes " + String(step.newHoles.length) + " new hole position" + (step.newHoles.length === 1 ? "" : "s") + ", highlighted in coral.";
-    if (step.departedHoles.length > 0) detail += " Dashed gray circles show the prior stacked position before that layer moved.";
-    if (step.completedFoldCount === 0) detail += " The sheet is now fully unfolded; this is the solved hole pattern.";
-    paperDetail.textContent = detail;
-  }
-  paperStats.textContent = "Visible hole positions: " + String(step.holes.length) + " · Folds still applied: " + String(step.completedFoldCount);
-  paperProgress.textContent = "Step " + String(paperStep + 1) + " / " + String(paperPayload.steps.length);
-  paperPrevious.disabled = paperStep === 0;
-  paperNext.disabled = paperStep === paperPayload.steps.length - 1;
 };
 
 const svgPolygonPoints = (polygon) => polygon.map((point) => Number(point[0]).toFixed(4) + "," + Number(point[1]).toFixed(4)).join(" ");
@@ -244,67 +219,192 @@ const foldAnimationSvg = (animation, progress) => {
   body += '<line x1="' + String(point[0] - direction[0] * scale) + '" y1="' + String(point[1] - direction[1] * scale) + '" x2="' + String(point[0] + direction[0] * scale) + '" y2="' + String(point[1] + direction[1] * scale) + '" stroke="#537fa6" stroke-width="0.05" stroke-dasharray="0.16 0.11"/>';
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 4.4 4.4">' + body + '</svg>';
 };
-const renderPaperAnimationFrame = (index, progress) => {
-  if (paperPayload === undefined) return;
-  const animations = paperPayload.foldAnimations ?? [];
-  if (animations.length === 0) {
-    paperAnimationSvg.innerHTML = paperPayload.questionSvgs.at(-1) ?? blankSheetSvg();
-    paperAnimationStatus.textContent = "No fold animation data";
-    return;
+
+const punchDetail = (payload) => payload.punches.map((punch, index) => "Punch " + String(index + 1) + ": " + String(punch.layerCount) + " layer" + (punch.layerCount === 1 ? "" : "s")).join(" · ");
+
+const buildPaperFrames = (payload) => {
+  const frames = [{
+    phase: "Start",
+    title: "Original sheet",
+    svg: blankSheetSvg(),
+    detail: "Begin with the original sheet before the first fold.",
+    stats: "Forward sequence ready · " + String(payload.foldAnimations.length) + " fold" + (payload.foldAnimations.length === 1 ? "" : "s"),
+    transition: undefined,
+  }];
+  const foldCount = Math.max(0, payload.questionSvgs.length - 1);
+  for (let index = 0; index < foldCount; index += 1) {
+    frames.push({
+      phase: "Forward",
+      title: "Fold " + String(index + 1),
+      svg: payload.questionSvgs[index] ?? blankSheetSvg(),
+      detail: "Apply forward fold " + String(index + 1) + " of " + String(foldCount) + ".",
+      stats: "Forward folding · " + String(foldCount - index - 1) + " fold" + (foldCount - index - 1 === 1 ? "" : "s") + " remaining before the punch",
+      transition: payload.foldAnimations[index] === undefined ? undefined : { animationIndex: index, direction: 1 },
+    });
   }
-  paperAnimationIndex = Math.min(animations.length - 1, Math.max(0, index));
-  const animation = animations[paperAnimationIndex];
-  paperAnimationSvg.innerHTML = foldAnimationSvg(animation, progress);
-  paperAnimationStatus.textContent = "Fold " + String(paperAnimationIndex + 1) + " / " + String(animations.length) + " · " + animation.foldId;
+  const punchStep = payload.steps.find((step) => step.kind === "punch");
+  const punchSvg = punchStep === undefined
+    ? payload.questionSvgs.at(-1) ?? blankSheetSvg()
+    : paperSvgWithOverlays(punchStep);
+  frames.push({
+    phase: "Punch",
+    title: "Punched folded stack",
+    svg: punchSvg,
+    detail: "The sheet is fully folded and punched. " + punchDetail(payload) + ".",
+    stats: "Forward folding complete · begin reversing the folds",
+    transition: undefined,
+  });
+  const unfoldSteps = payload.steps.filter((step) => step.kind === "unfold");
+  unfoldSteps.forEach((step, index) => {
+    const animationIndex = payload.foldAnimations.length - 1 - index;
+    let detail = "Reverse this fold across the dashed axis. " + String(step.affectedLayerCount) + " punched layer" + (step.affectedLayerCount === 1 ? " moves" : "s move") + " with the flap.";
+    if (step.newHoles.length > 0) detail += " This exposes " + String(step.newHoles.length) + " new hole position" + (step.newHoles.length === 1 ? "" : "s") + ", highlighted in coral.";
+    if (step.departedHoles.length > 0) detail += " Dashed gray circles show the prior stacked position before that layer moved.";
+    if (step.completedFoldCount === 0) detail += " The sheet is now fully unfolded; this is the solved hole pattern.";
+    frames.push({
+      phase: step.completedFoldCount === 0 ? "Solved" : "Reverse",
+      title: step.title,
+      svg: paperSvgWithOverlays(step),
+      detail,
+      stats: "Visible hole positions: " + String(step.holes.length) + " · Folds still applied: " + String(step.completedFoldCount),
+      transition: animationIndex < 0 || payload.foldAnimations[animationIndex] === undefined
+        ? undefined
+        : { animationIndex, direction: -1 },
+    });
+  });
+  return frames;
 };
-const animateOnePaperFold = (index, token) => new Promise((resolve) => {
-  if (paperPayload === undefined) { resolve(); return; }
-  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-  if (reduced) {
-    renderPaperAnimationFrame(index, 1);
-    window.setTimeout(resolve, 120);
-    return;
-  }
-  const started = performance.now();
-  const duration = 780;
+
+const currentPaperSpeed = () => {
+  const speed = Number(paperSpeed.value);
+  return Number.isFinite(speed) && speed > 0 ? speed : 1;
+};
+
+const syncPaperPlaybackControls = () => {
+  paperPlay.disabled = paperPlaybackActive && paperPlaying;
+  paperPause.disabled = !paperPlaybackActive || !paperPlaying;
+};
+
+const renderPaperFrame = () => {
+  const frame = paperFrames[paperFrameIndex];
+  if (frame === undefined) return;
+  paperAnimationView.innerHTML = frame.svg;
+  paperPhase.textContent = frame.phase;
+  paperStepTitle.textContent = frame.title;
+  paperDetail.textContent = frame.detail;
+  paperStats.textContent = frame.stats;
+  paperProgress.textContent = "Step " + String(paperFrameIndex + 1) + " / " + String(paperFrames.length);
+  paperPreviousStep.disabled = paperFrameIndex === 0;
+  paperNextStep.disabled = paperFrameIndex === paperFrames.length - 1;
+};
+
+const cancelPaperPlayback = () => {
+  paperPlaybackToken += 1;
+  paperPlaybackActive = false;
+  paperPlaying = false;
+  syncPaperPlaybackControls();
+};
+
+const waitForPaperTime = (milliseconds, token) => new Promise((resolve) => {
+  let elapsed = 0;
+  let last = performance.now();
   const frame = (now) => {
-    if (token !== paperAnimationToken) { resolve(); return; }
-    const progress = Math.min(1, (now - started) / duration);
-    renderPaperAnimationFrame(index, progress);
-    if (progress < 1) requestAnimationFrame(frame);
-    else window.setTimeout(resolve, 180);
+    if (token !== paperPlaybackToken) { resolve(false); return; }
+    if (paperPlaying) elapsed += (now - last) * currentPaperSpeed();
+    last = now;
+    if (elapsed >= milliseconds) resolve(true);
+    else requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
 });
-const playPaperFolds = async (fromCurrent = false) => {
-  if (paperPayload === undefined) return;
-  const token = ++paperAnimationToken;
-  const animations = paperPayload.foldAnimations ?? [];
-  const start = fromCurrent ? paperAnimationIndex : 0;
-  for (let index = start; index < animations.length; index += 1) {
-    if (token !== paperAnimationToken) return;
-    await animateOnePaperFold(index, token);
+
+const animatePaperTransition = (transition, reverse, token) => new Promise((resolve) => {
+  if (paperPayload === undefined || transition === undefined) { resolve(true); return; }
+  const animation = paperPayload.foldAnimations[transition.animationIndex];
+  if (animation === undefined) { resolve(true); return; }
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  const normalStart = transition.direction === 1 ? 0 : 1;
+  const normalEnd = transition.direction === 1 ? 1 : 0;
+  const start = reverse ? normalEnd : normalStart;
+  const end = reverse ? normalStart : normalEnd;
+  if (reducedMotion) {
+    paperAnimationView.innerHTML = foldAnimationSvg(animation, end);
+    resolve(true);
+    return;
   }
-  if (token !== paperAnimationToken) return;
-  paperAnimationSvg.innerHTML = paperPayload.questionSvgs.at(-1) ?? blankSheetSvg();
-  paperAnimationStatus.textContent = "Fold sequence complete · punch frame";
+  let progress = 0;
+  let last = performance.now();
+  const frame = (now) => {
+    if (token !== paperPlaybackToken) { resolve(false); return; }
+    if (paperPlaying) progress = Math.min(1, progress + (now - last) * currentPaperSpeed() / 780);
+    last = now;
+    const value = start + (end - start) * progress;
+    paperAnimationView.innerHTML = foldAnimationSvg(animation, value);
+    if (progress >= 1) resolve(true);
+    else requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+});
+
+const runPaperSequence = async (token) => {
+  while (paperFrameIndex < paperFrames.length - 1) {
+    const destination = paperFrames[paperFrameIndex + 1];
+    paperPhase.textContent = destination?.phase ?? "Forward";
+    const completed = await animatePaperTransition(destination?.transition, false, token);
+    if (!completed || token !== paperPlaybackToken) return;
+    paperFrameIndex += 1;
+    renderPaperFrame();
+    if (!await waitForPaperTime(220, token) || token !== paperPlaybackToken) return;
+  }
+  while (paperFrameIndex > 0) {
+    paperPhase.textContent = "Rewind";
+    const current = paperFrames[paperFrameIndex];
+    const completed = await animatePaperTransition(current?.transition, true, token);
+    if (!completed || token !== paperPlaybackToken) return;
+    paperFrameIndex -= 1;
+    renderPaperFrame();
+    if (!await waitForPaperTime(120, token) || token !== paperPlaybackToken) return;
+  }
 };
-const setPaperMode = (mode) => {
-  paperMode = mode;
-  paperAnimationToken += 1;
-  paperOverview.classList.toggle("hidden", mode !== "overview");
-  paperStepView.classList.toggle("hidden", mode !== "steps");
-  paperAnimationView.classList.toggle("hidden", mode !== "animation");
-  paperModeOverview.classList.toggle("active", mode === "overview");
-  paperModeSteps.classList.toggle("active", mode === "steps");
-  paperModeAnimation.classList.toggle("active", mode === "animation");
-  if (mode === "animation") renderPaperAnimationFrame(paperAnimationIndex, 0);
+
+const startPaperPlayback = () => {
+  if (paperPayload === undefined || paperFrames.length === 0) return;
+  if (paperPlaybackActive) {
+    paperPlaying = true;
+    syncPaperPlaybackControls();
+    return;
+  }
+  paperPlaybackActive = true;
+  paperPlaying = true;
+  const token = ++paperPlaybackToken;
+  syncPaperPlaybackControls();
+  void runPaperSequence(token).finally(() => {
+    if (token !== paperPlaybackToken) return;
+    paperPlaybackActive = false;
+    paperPlaying = false;
+    syncPaperPlaybackControls();
+    renderPaperFrame();
+  });
+};
+
+const pausePaperPlayback = () => {
+  if (!paperPlaybackActive) return;
+  paperPlaying = false;
+  syncPaperPlaybackControls();
+};
+
+const movePaperFrame = (delta) => {
+  if (paperFrames.length === 0) return;
+  cancelPaperPlayback();
+  paperFrameIndex = Math.min(paperFrames.length - 1, Math.max(0, paperFrameIndex + delta));
+  renderPaperFrame();
 };
 
 const mountPaper = (payload) => {
+  cancelPaperPlayback();
   paperPayload = payload;
-  paperStep = 0;
-  paperAnimationIndex = 0;
+  paperFrames = buildPaperFrames(payload);
+  paperFrameIndex = 0;
   canvas.classList.add("hidden");
   colorLegend.classList.add("hidden");
   hint.classList.add("hidden");
@@ -313,27 +413,15 @@ const mountPaper = (payload) => {
   viewControls.classList.add("hidden");
   target.classList.add("hidden");
   paperOverview.innerHTML = payload.overviewSvg;
-  paperSequence.replaceChildren();
-  payload.questionSvgs.forEach((svg, index) => {
-    const item = document.createElement("div");
-    item.className = "paper-sequence-item";
-    const picture = document.createElement("div");
-    picture.innerHTML = svg;
-    const label = document.createElement("div");
-    label.className = "paper-sequence-label";
-    label.textContent = index === payload.questionSvgs.length - 1 ? "Punch" : "Fold " + String(index + 1);
-    item.append(picture, label);
-    paperSequence.append(item);
-  });
-  setPaperMode("overview");
-  renderPaperStep();
-  renderPaperAnimationFrame(0, 0);
-  status.textContent = "Paper overview, guided unfolding, and fold animation ready";
+  renderPaperFrame();
+  status.textContent = "Paper overview and interactive forward → reverse → rewind timeline ready";
   status.style.color = "";
 };
 
 const mountThree = (payload) => {
+  cancelPaperPlayback();
   paperPayload = undefined;
+  paperFrames = [];
   paperGuide.classList.add("hidden");
   colorLegend.classList.add("hidden");
   canvas.classList.remove("hidden");
@@ -364,8 +452,9 @@ const mountPosition = (requestedPosition) => {
   const payload = payloads[globalIndex];
   if (viewer !== undefined) viewer.dispose();
   viewer = undefined;
+  cancelPaperPlayback();
   paperPayload = undefined;
-  paperAnimationToken += 1;
+  paperFrames = [];
   canvas.replaceChildren();
   viewControls.replaceChildren();
   resetToggles();
@@ -377,6 +466,7 @@ const mountPosition = (requestedPosition) => {
   } catch (error) {
     viewer = undefined;
     paperPayload = undefined;
+    paperFrames = [];
     status.textContent = error instanceof Error ? error.message : String(error);
     status.style.color = "#a22";
   }
@@ -412,12 +502,9 @@ next.addEventListener("click", () => mountPosition(activePosition + 1));
 target.addEventListener("click", () => viewer?.setTargetView());
 reset.addEventListener("click", () => {
   if (paperPayload !== undefined) {
-    paperAnimationToken += 1;
-    paperStep = 0;
-    paperAnimationIndex = 0;
-    renderPaperStep();
-    renderPaperAnimationFrame(0, 0);
-    setPaperMode("overview");
+    cancelPaperPlayback();
+    paperFrameIndex = 0;
+    renderPaperFrame();
   } else viewer?.reset();
 });
 auto.addEventListener("change", () => viewer?.setAutoRotate(auto.checked));
@@ -429,22 +516,14 @@ ghost.addEventListener("change", () => viewer?.setGhosted(ghost.checked));
 surface.addEventListener("change", () => viewer?.setSurfaceVisible(surface.checked));
 edges.addEventListener("change", () => viewer?.setEdgesVisible(edges.checked));
 explain.addEventListener("change", () => viewer?.setExplanationVisible(explain.checked));
-paperModeOverview.addEventListener("click", () => setPaperMode("overview"));
-paperModeSteps.addEventListener("click", () => setPaperMode("steps"));
-paperModeAnimation.addEventListener("click", () => setPaperMode("animation"));
-paperAnimationPlay.addEventListener("click", () => { void playPaperFolds(false); });
-paperAnimationReplay.addEventListener("click", () => { void playPaperFolds(true); });
-paperPrevious.addEventListener("click", () => {
-  if (paperPayload === undefined) return;
-  paperStep = Math.max(0, paperStep - 1);
-  renderPaperStep();
+paperPreviousStep.addEventListener("click", () => movePaperFrame(-1));
+paperNextStep.addEventListener("click", () => movePaperFrame(1));
+paperPlay.addEventListener("click", startPaperPlayback);
+paperPause.addEventListener("click", pausePaperPlayback);
+paperSpeed.addEventListener("change", () => {
+  if (paperPlaybackActive && !paperPlaying) syncPaperPlaybackControls();
 });
-paperNext.addEventListener("click", () => {
-  if (paperPayload === undefined) return;
-  paperStep = Math.min(paperPayload.steps.length - 1, paperStep + 1);
-  renderPaperStep();
-});
-window.addEventListener("beforeunload", () => { paperAnimationToken += 1; viewer?.dispose(); }, { once: true });
+window.addEventListener("beforeunload", () => { cancelPaperPlayback(); viewer?.dispose(); }, { once: true });
 rebuildQuestionList(0);
 </script>
 </body>
