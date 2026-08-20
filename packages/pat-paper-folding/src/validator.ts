@@ -2,7 +2,11 @@ import { EPS, type ValidationCheck, type Vec2 } from "@manipat/core";
 import { applyFold, createInitialFoldState, signedDistanceFromFold } from "./fold.js";
 import { isSinglePhysicalFoldTransition } from "./render.js";
 import { solvePaperFoldingQuestion } from "./solver.js";
-import type { PaperFoldingQuestion, PaperFoldingValidationResult } from "./types.js";
+import type {
+  FoldInstruction,
+  PaperFoldingQuestion,
+  PaperFoldingValidationResult,
+} from "./types.js";
 
 const check = (id: string, passed: boolean): ValidationCheck => ({ id, passed, severity: "error" });
 const onGrid = ([x, y]: readonly [number, number]): boolean =>
@@ -33,7 +37,7 @@ const foldsReduceState = (question: PaperFoldingQuestion): boolean => {
 };
 
 const foldsAreSinglePhysicalSteps = (question: PaperFoldingQuestion): boolean => {
-  const completed = [] as typeof question.prompt.folds[number][];
+  const completed: FoldInstruction[] = [];
   for (const fold of question.prompt.folds) {
     if (!isSinglePhysicalFoldTransition(completed, fold)) return false;
     completed.push(fold);
