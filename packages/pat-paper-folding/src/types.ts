@@ -41,6 +41,9 @@ export interface FoldState {
 export interface PaperFoldingPrompt {
   readonly folds: readonly FoldInstruction[];
   readonly punches: readonly Vec2[];
+  /** Figure A: the original, unfolded square in the fixed page coordinate frame. */
+  readonly originalSvg: string;
+  /** Consecutive folded states followed by a distinct final punch panel. */
   readonly stepSvgs: readonly string[];
 }
 
