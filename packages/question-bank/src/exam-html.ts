@@ -126,11 +126,15 @@ const rowSvg = (question: AnyPatQuestion, number: number): string => {
     case "paper-folding": {
       const rowH = 376;
       const diagramSize = 160;
-      const steps = question.prompt.stepSvgs;
+      const steps = [question.prompt.originalSvg, ...question.prompt.stepSvgs];
       const stepGap = 14;
       const stepsBlock = steps.map((step, index) => {
         const x = 18 + index * (diagramSize + stepGap);
-        const label = index === steps.length - 1 ? "PUNCH" : `FOLD ${index + 1}`;
+        const label = index === 0
+          ? "ORIGINAL"
+          : index === steps.length - 1
+            ? "PUNCH"
+            : `FOLD ${index}`;
         return `${positionedSvg(step, x, 10, diagramSize, diagramSize)}${svgText(x + diagramSize / 2, 182, label, 10, "middle", "700")}`;
       }).join("");
       const choiceGap = 18;
