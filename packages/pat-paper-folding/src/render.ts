@@ -3,6 +3,7 @@ import { svgCircle, svgDocument, svgLine, svgPolygon } from "@manipat/svg";
 import type { FoldInstruction } from "./types.js";
 
 const ORIGINAL_SQUARE: readonly Vec2[] = [[0, 0], [4, 0], [4, 4], [0, 4]];
+const VISUAL_EPS = 1e-7;
 
 const gridLines = () => Array.from({ length: 5 }, (_, index) => [
   svgLine([index, 0], [index, 4], { stroke: "#999", "stroke-width": 0.04 }),
@@ -54,6 +55,97 @@ const polygonArea = (polygon: readonly Vec2[]): number => Math.abs(polygon.reduc
   const next = polygon[(index + 1) % polygon.length];
   return next === undefined ? sum : sum + point[0] * next[1] - next[0] * point[1];
 }, 0) / 2);
+
+const cross = (a: Vec2, b: Vec2, c: Vec2): number =>
+  (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+
+const segmentLength = (a: Vec2, b: Vec2): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+const collinearSegmentsShareLength = (a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean => {
+  if (Math.abs(cross(a, b, c)) > VISUAL_EPS || Math.abs(cross(a, b, d)) > VISUAL_EPS) return false;
+  const useX = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]);
+  const firstMin = Math.min(useX ? a[0] : a[1], useX ? b[0] : b[1]);
+  const firstMax = Math.max(useX ? a[0] : a[1], useX ? b[0] : b[1]);
+  const secondMin = Math.min(useX ? c[0] : c[1], useX ? d[0] : d[1]);
+  const secondMax = Math.max(useX ? c[0] : c[1], useX ? d[0] : d[1]);
+  return Math.min(firstMax, secondMax) - Math.max(firstMin, secondMin) > VISUAL_EPS;
+};
+
+const segmentsProperlyIntersect = (a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean => {
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  return abC * abD < -VISUAL_EPS && cdA * cdB < -VISUAL_EPS;
+};
+
+const pointStrictlyInsidePolygon = (point: Vec2, polygon: readonly Vec2[]): boolean => {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const a = polygon[index]!;
+    const b = polygon[previous]!;
+    if (Math.abs(cross(a, b, point)) <= VISUAL_EPS
+      && point[0] >= Math.min(a[0], b[0]) - VISUAL_EPS
+      && point[0] <= Math.max(a[0], b[0]) + VISUAL_EPS
+      && point[1] >= Math.min(a[1], b[1]) - VISUAL_EPS
+      && point[1] <= Math.max(a[1], b[1]) + VISUAL_EPS) return false;
+    const crosses = (a[1] > point[1]) !== (b[1] > point[1]);
+    if (crosses) {
+      const x = a[0] + (point[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
+      if (x > point[0]) inside = !inside;
+    }
+  }
+  return inside;
+};
+
+const polygonsSharePhysicalRegion = (first: readonly Vec2[], second: readonly Vec2[]): boolean => {
+  for (let firstIndex = 0; firstIndex < first.length; firstIndex += 1) {
+    const a = first[firstIndex]!;
+    const b = first[(firstIndex + 1) % first.length]!;
+    for (let secondIndex = 0; secondIndex < second.length; secondIndex += 1) {
+      const c = second[secondIndex]!;
+      const d = second[(secondIndex + 1) % second.length]!;
+      if (collinearSegmentsShareLength(a, b, c, d) || segmentsProperlyIntersect(a, b, c, d)) return true;
+    }
+  }
+  return first.some((point) => pointStrictlyInsidePolygon(point, second))
+    || second.some((point) => pointStrictlyInsidePolygon(point, first));
+};
+
+const polygonsFormSingleConnectedRegion = (polygons: readonly (readonly Vec2[])[]): boolean => {
+  if (polygons.length === 0) return false;
+  const reached = new Set<number>([0]);
+  const pending = [0];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined) continue;
+    for (let candidate = 0; candidate < polygons.length; candidate += 1) {
+      if (reached.has(candidate)) continue;
+      const first = polygons[current];
+      const second = polygons[candidate];
+      if (first === undefined || second === undefined || !polygonsSharePhysicalRegion(first, second)) continue;
+      reached.add(candidate);
+      pending.push(candidate);
+    }
+  }
+  return reached.size === polygons.length;
+};
+
+const polygonHasCreaseSegment = (
+  polygon: readonly Vec2[],
+  fold: FoldInstruction,
+): boolean => polygon.some((point, index) => {
+  const next = polygon[(index + 1) % polygon.length];
+  if (next === undefined || segmentLength(point, next) <= VISUAL_EPS) return false;
+  return Math.abs(cross(fold.line.point, [
+    fold.line.point[0] + fold.line.unitDirection[0],
+    fold.line.point[1] + fold.line.unitDirection[1],
+  ], point)) <= VISUAL_EPS
+    && Math.abs(cross(fold.line.point, [
+      fold.line.point[0] + fold.line.unitDirection[0],
+      fold.line.point[1] + fold.line.unitDirection[1],
+    ], next)) <= VISUAL_EPS;
+});
 
 export interface PaperVisualPanel {
   readonly polygon: readonly Vec2[];
@@ -132,6 +224,37 @@ const applyVisualFold = (
   return dedupePanels([...stationary, ...reflected.reverse()]);
 };
 
+/** Compute the visible folded-paper panel stack after N completed folds. */
+const computeVisualPanels = (
+  folds: readonly FoldInstruction[],
+  completedFoldCount: number,
+): readonly PaperVisualPanel[] => {
+  let panels: readonly PaperVisualPanel[] = [{ polygon: ORIGINAL_SQUARE }];
+  for (let index = 0; index < completedFoldCount; index += 1) {
+    const fold = folds[index];
+    if (fold !== undefined) panels = applyVisualFold(panels, fold);
+  }
+  return panels;
+};
+
+/**
+ * DAT Paper Folding shows one physical fold per consecutive panel. A candidate
+ * transition is accepted only when its moving footprint is one connected flap
+ * or stack attached to the crease. This rejects a single FoldInstruction that
+ * would visually move disconnected paper pieces at the same time.
+ */
+export const isSinglePhysicalFoldTransition = (
+  completedFolds: readonly FoldInstruction[],
+  fold: FoldInstruction,
+): boolean => {
+  const panels = computeVisualPanels(completedFolds, completedFolds.length);
+  const { stationary, moving } = splitVisualFold(panels, fold);
+  if (stationary.length === 0 || moving.length === 0) return false;
+  const movingPolygons = moving.map(({ polygon }) => polygon);
+  return polygonsFormSingleConnectedRegion(movingPolygons)
+    && movingPolygons.some((polygon) => polygonHasCreaseSegment(polygon, fold));
+};
+
 /**
  * Return deterministic panel geometry for every forward fold. This is a visual
  * projection of the canonical fold program, not a separate folding solver.
@@ -154,18 +277,20 @@ export const buildPaperVisualFoldTransitions = (
   return result;
 };
 
-/** Compute the visible folded-paper panel stack after N completed folds. */
-const computeVisualPanels = (
-  folds: readonly FoldInstruction[],
-  completedFoldCount: number,
-): readonly PaperVisualPanel[] => {
-  let panels: readonly PaperVisualPanel[] = [{ polygon: ORIGINAL_SQUARE }];
-  for (let index = 0; index < completedFoldCount; index += 1) {
-    const fold = folds[index];
-    if (fold !== undefined) panels = applyVisualFold(panels, fold);
-  }
-  return panels;
-};
+/** Figure A: original square, fixed in the page coordinate frame. */
+export const renderOriginalSheet = (): string => svgDocument({
+  viewBox: [-0.2, -0.2, 4.4, 4.4],
+  title: "Paper folding original sheet",
+  children: [
+    svgPolygon(ORIGINAL_SQUARE, {
+      "data-original-sheet": "true",
+      fill: "white",
+      stroke: "black",
+      "stroke-width": 0.08,
+      "stroke-linejoin": "round",
+    }),
+  ],
+});
 
 export const renderHolePattern = (holes: readonly Vec2[], title: string): string => {
   const holeSet = new Set(holes.map(([x, y]) => `${x},${y}`));
