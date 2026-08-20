@@ -1,4 +1,4 @@
-import { generatePaperFoldingQuestion } from "@manipat/question-bank";
+import { createPatEngine } from "@manipat/question-bank";
 import { describe, expect, it } from "vitest";
 import { buildVisualizationPayload } from "../src/visualize.js";
 import { renderViewerHtml } from "../src/viewer-server.js";
@@ -51,9 +51,16 @@ const paperPayload: PaperGuidePayload = {
 
 describe("interactive viewer HTML", () => {
   it("builds the canonical Original → folds → Punch payload used by the walkthrough", async () => {
-    const question = generatePaperFoldingQuestion("viewer-paper-sequence", 4);
-    const payload = await buildVisualizationPayload(question);
+    const engine = await createPatEngine();
+    const question = await engine.generate({
+      type: "paper-folding",
+      seed: "viewer-paper-sequence",
+      difficulty: 4,
+    });
+    expect(question.type).toBe("paper-folding");
+    if (question.type !== "paper-folding") return;
 
+    const payload = await buildVisualizationPayload(question);
     expect(payload.kind).toBe("paper-guide");
     if (payload.kind !== "paper-guide") return;
     expect(payload.questionSvgs).toHaveLength(question.prompt.folds.length + 2);
