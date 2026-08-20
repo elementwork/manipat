@@ -44,6 +44,13 @@ const foldsAreSinglePhysicalSteps = (question: PaperFoldingQuestion): boolean =>
 const fixedPageFrame = (svg: string): boolean => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"')
   && !/transform\s*=\s*["'][^"']*(?:rotate\s*\(|scale\s*\(\s*-)/iu.test(svg);
 
+const hasConsecutiveFoldPanels = (question: PaperFoldingQuestion): boolean => {
+  if (question.prompt.stepSvgs.length !== question.prompt.folds.length + 1) return false;
+  const foldPanels = question.prompt.stepSvgs.slice(0, -1);
+  if (!foldPanels.every((svg, index) => svg.includes(`<title>Paper folding fold ${index + 1}</title>`))) return false;
+  return question.prompt.stepSvgs.at(-1)?.includes("<title>Paper folding punch</title>") === true;
+};
+
 export const validatePaperFoldingQuestion = (
   question: PaperFoldingQuestion,
 ): PaperFoldingValidationResult => {
@@ -68,9 +75,11 @@ export const validatePaperFoldingQuestion = (
     check("original-panel", question.prompt.originalSvg.startsWith("<svg")
       && question.prompt.originalSvg.includes('data-original-sheet="true"')),
     check("step-panel-count", question.prompt.stepSvgs.length === question.prompt.folds.length + 1),
+    check("consecutive-step-panels", hasConsecutiveFoldPanels(question)),
     check("fixed-page-orientation", fixedPageFrame(question.prompt.originalSvg)
       && question.prompt.stepSvgs.every(fixedPageFrame)),
-    check("renderable", question.prompt.stepSvgs.every((svg) => svg.startsWith("<svg"))
+    check("renderable", question.prompt.originalSvg.startsWith("<svg")
+      && question.prompt.stepSvgs.every((svg) => svg.startsWith("<svg"))
       && question.choices.every(({ svg }) => svg.startsWith("<svg"))),
   ];
   return { passed: checks.every(({ passed }) => passed), checks, matchingChoiceIndices: matches };
