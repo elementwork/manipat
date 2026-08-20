@@ -1,5 +1,6 @@
 import { EPS, type ValidationCheck, type Vec2 } from "@manipat/core";
 import { applyFold, createInitialFoldState, signedDistanceFromFold } from "./fold.js";
+import { isSinglePhysicalFoldTransition } from "./render.js";
 import { solvePaperFoldingQuestion } from "./solver.js";
 import type { PaperFoldingQuestion, PaperFoldingValidationResult } from "./types.js";
 
@@ -31,6 +32,18 @@ const foldsReduceState = (question: PaperFoldingQuestion): boolean => {
   return true;
 };
 
+const foldsAreSinglePhysicalSteps = (question: PaperFoldingQuestion): boolean => {
+  const completed = [] as typeof question.prompt.folds[number][];
+  for (const fold of question.prompt.folds) {
+    if (!isSinglePhysicalFoldTransition(completed, fold)) return false;
+    completed.push(fold);
+  }
+  return true;
+};
+
+const fixedPageFrame = (svg: string): boolean => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"')
+  && !/transform\s*=\s*["'][^"']*(?:rotate\s*\(|scale\s*\(\s*-)/iu.test(svg);
+
 export const validatePaperFoldingQuestion = (
   question: PaperFoldingQuestion,
 ): PaperFoldingValidationResult => {
@@ -42,6 +55,7 @@ export const validatePaperFoldingQuestion = (
   const checks = [
     check("fold-count", question.prompt.folds.length >= 1 && question.prompt.folds.length <= 3),
     check("effective-folds", foldsReduceState(question)),
+    check("single-physical-folds", foldsAreSinglePhysicalSteps(question)),
     check("choice-count", question.choices.length === 5),
     check("unique-choices", new Set(question.choices.map(({ fingerprint }) => fingerprint)).size === 5),
     check("choice-diversity", wrongDistances.every((distance) => distance >= 1)
@@ -51,6 +65,11 @@ export const validatePaperFoldingQuestion = (
     check("grid-holes", allHoles.every(onGrid)),
     check("punch-off-boundaries", question.prompt.punches.every((point) =>
       question.prompt.folds.every(({ line }) => Math.abs(signedDistanceFromFold(point, line)) > EPS.point))),
+    check("original-panel", question.prompt.originalSvg.startsWith("<svg")
+      && question.prompt.originalSvg.includes('data-original-sheet="true"')),
+    check("step-panel-count", question.prompt.stepSvgs.length === question.prompt.folds.length + 1),
+    check("fixed-page-orientation", fixedPageFrame(question.prompt.originalSvg)
+      && question.prompt.stepSvgs.every(fixedPageFrame)),
     check("renderable", question.prompt.stepSvgs.every((svg) => svg.startsWith("<svg"))
       && question.choices.every(({ svg }) => svg.startsWith("<svg"))),
   ];
