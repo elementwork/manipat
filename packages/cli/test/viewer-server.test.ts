@@ -1,24 +1,29 @@
+import { generatePaperFoldingQuestion } from "@manipat/question-bank";
 import { describe, expect, it } from "vitest";
+import { buildVisualizationPayload } from "../src/visualize.js";
 import { renderViewerHtml } from "../src/viewer-server.js";
 import type { PaperGuidePayload } from "../src/viewer-payload.js";
 
-const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"></svg>';
+const originalSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 4.4 4.4"><title>Original</title></svg>';
+const foldSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 4.4 4.4"><title>Fold 1</title></svg>';
+const punchSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.2 -0.2 4.4 4.4"><title>Punch</title></svg>';
+const overviewSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 350"></svg>';
 
 const paperPayload: PaperGuidePayload = {
   kind: "paper-guide",
   questionId: "paper-layout-test",
   category: "paper-folding",
   title: "Paper layout test",
-  overviewSvg: svg,
-  questionSvgs: [svg, svg],
-  correctSvg: svg,
+  overviewSvg,
+  questionSvgs: [originalSvg, foldSvg, punchSvg],
+  correctSvg: originalSvg,
   punches: [{ point: [1.5, 1.5], layerCount: 2 }],
   steps: [
     {
       kind: "punch",
       title: "Punch",
       completedFoldCount: 1,
-      baseSvg: svg,
+      baseSvg: punchSvg,
       holes: [[1.5, 1.5]],
       newHoles: [],
       departedHoles: [],
@@ -28,7 +33,7 @@ const paperPayload: PaperGuidePayload = {
       kind: "unfold",
       title: "Reverse fold 1",
       completedFoldCount: 0,
-      baseSvg: svg,
+      baseSvg: originalSvg,
       holes: [[1.5, 1.5], [2.5, 1.5]],
       newHoles: [[2.5, 1.5]],
       departedHoles: [[1.5, 1.5]],
@@ -45,7 +50,22 @@ const paperPayload: PaperGuidePayload = {
 };
 
 describe("interactive viewer HTML", () => {
-  it("renders Paper Punching as one split workspace with unified timeline controls", () => {
+  it("builds the canonical Original → folds → Punch payload used by the walkthrough", async () => {
+    const question = generatePaperFoldingQuestion("viewer-paper-sequence", 4);
+    const payload = await buildVisualizationPayload(question);
+
+    expect(payload.kind).toBe("paper-guide");
+    if (payload.kind !== "paper-guide") return;
+    expect(payload.questionSvgs).toHaveLength(question.prompt.folds.length + 2);
+    expect(payload.questionSvgs[0]).toBe(question.prompt.originalSvg);
+    expect(payload.questionSvgs.slice(1)).toEqual(question.prompt.stepSvgs);
+    expect(payload.overviewSvg).toContain("Original");
+    expect(payload.overviewSvg).toContain("Fold 1");
+    expect(payload.overviewSvg).toContain("Punch");
+    expect(payload.steps.at(-1)?.baseSvg).toBe(question.prompt.originalSvg);
+  });
+
+  it("renders Paper Punching as one split workspace with synchronized step and playback controls", () => {
     const html = renderViewerHtml([paperPayload]);
 
     expect(html).toContain('class="paper-panel paper-left"');
@@ -57,8 +77,22 @@ describe("interactive viewer HTML", () => {
     expect(html).toContain('id="paper-play"');
     expect(html).toContain('id="paper-pause"');
     expect(html).toContain('id="paper-speed"');
+
+    expect(html).toContain("const expectedQuestionFrameCount = payload.foldAnimations.length + 2");
+    expect(html).toContain("Paper timeline requires Original + one frame per fold + Punch");
+    expect(html).toContain("svg: payload.questionSvgs[0] ?? blankSheetSvg()");
+    expect(html).toContain("const foldCount = payload.foldAnimations.length");
+    expect(html).toContain("svg: payload.questionSvgs[index + 1] ?? blankSheetSvg()");
     expect(html).toContain("forward → reverse → rewind timeline ready");
+
     expect(html).toContain("const runPaperSequence = async");
+    expect(html).toContain("const startPaperPlayback = () =>");
+    expect(html).toContain("const pausePaperPlayback = () =>");
+    expect(html).toContain("if (paperPlaying) progress = Math.min(1");
+    expect(html).toContain("paperPlay.addEventListener(\"click\", startPaperPlayback)");
+    expect(html).toContain("paperPause.addEventListener(\"click\", pausePaperPlayback)");
+    expect(html).toContain("paperPreviousStep.addEventListener(\"click\", () => movePaperFrame(-1))");
+    expect(html).toContain("paperNextStep.addEventListener(\"click\", () => movePaperFrame(1))");
     expect(html).toContain('paperPhase.textContent = "Rewind"');
 
     expect(html).not.toContain('id="paper-mode-overview"');
