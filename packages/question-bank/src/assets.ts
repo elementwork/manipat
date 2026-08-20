@@ -34,8 +34,9 @@ export const extractQuestionAssets = (question: AnyPatQuestion): readonly Questi
       return [asset(question.id, "prompt-svg", `${question.id}-prompt.svg`, question.prompt.svg)];
     case "paper-folding":
       return [
+        asset(question.id, "prompt-svg", `${question.id}-original.svg`, question.prompt.originalSvg),
         ...question.prompt.stepSvgs.map((svg, index) =>
-          asset(question.id, "prompt-svg", `${question.id}-step-${index}.svg`, svg)),
+          asset(question.id, "prompt-svg", `${question.id}-step-${index + 1}.svg`, svg)),
         ...question.choices.map(({ svg }, index) =>
           asset(question.id, "choice-svg", `${question.id}-choice-${index}.svg`, svg)),
       ];
