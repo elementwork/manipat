@@ -37,6 +37,26 @@ describe("@manipat/runtime", () => {
     expect(generated.privateRecord.solution.explanationHtml.length).toBeGreaterThan(0);
   });
 
+  it("exports the complete consecutive Paper Folding prompt without changing page orientation", async () => {
+    const runtime = await createPatRuntime();
+    const generated = await runtime.generateQuestion({
+      type: "paper-folding",
+      seed: "runtime-paper-sequence",
+      difficulty: 4,
+    });
+    const assets = generated.publicQuestion.promptAssets;
+
+    expect(assets.length).toBeGreaterThanOrEqual(3);
+    expect(assets[0]?.svg).toContain('data-original-sheet="true"');
+    expect(assets.at(-1)?.svg).toContain("<title>Paper folding punch</title>");
+    expect(assets.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
+    expect(assets.every(({ svg }) =>
+      !/transform\s*=\s*["'][^"']*(?:rotate\s*\(|scale\s*\(\s*-)/iu.test(svg))).toBe(true);
+    assets.slice(1, -1).forEach(({ svg }, index) => {
+      expect(svg).toContain(`<title>Paper folding fold ${index + 1}</title>`);
+    });
+  });
+
   it("reproduces a generated question from the trusted private record", async () => {
     const runtime = await createPatRuntime();
     const generated = await runtime.generateQuestion({

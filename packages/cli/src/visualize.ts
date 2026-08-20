@@ -184,7 +184,7 @@ const renderPaperOverviewSvg = (
   }).join("");
   const forward = questionSvgs.map((svg, index) => ({
     inner: svgInner(svg),
-    label: index === questionSvgs.length - 1 ? "Punch" : `Fold ${index + 1}`,
+    label: index === 0 ? "Original" : index === questionSvgs.length - 1 ? "Punch" : `Fold ${index}`,
   }));
   const reverse = steps.map((step, index) => ({
     inner: paperStepInner(step),
@@ -235,8 +235,8 @@ const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
     const afterHoles = holesForState(afterState, punchedSourceLayerIds);
     const completedFoldCount = foldIndex;
     const baseSvg = completedFoldCount === 0
-      ? null
-      : question.prompt.stepSvgs[completedFoldCount - 1] ?? null;
+      ? question.prompt.originalSvg
+      : question.prompt.stepSvgs[completedFoldCount - 1] ?? question.prompt.originalSvg;
     steps.push({
       kind: "unfold",
       title: `Unfold ${fold.id}`,
@@ -256,13 +256,14 @@ const buildPaperGuidePayload = (question: PaperQuestion): PaperGuidePayload => {
   const correctChoice = question.choices[question.correctChoiceIndex];
   if (correctChoice === undefined) throw new Error("Paper question correct choice is missing");
   const foldAnimations = buildPaperVisualFoldTransitions(question.prompt.folds);
+  const questionSvgs = [question.prompt.originalSvg, ...question.prompt.stepSvgs];
   return {
     kind: "paper-guide",
     questionId: question.id,
     category: question.type,
     title: "Paper Punching — guided unfolding",
-    overviewSvg: renderPaperOverviewSvg(question.prompt.stepSvgs, steps),
-    questionSvgs: question.prompt.stepSvgs,
+    overviewSvg: renderPaperOverviewSvg(questionSvgs, steps),
+    questionSvgs,
     correctSvg: correctChoice.svg,
     punches: punchedState.punches.map(({ point, sourceLayerIds }) => ({
       point,

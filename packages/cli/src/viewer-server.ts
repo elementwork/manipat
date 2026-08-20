@@ -245,20 +245,24 @@ const foldAnimationSvg = (animation, progress) => {
 const punchDetail = (payload) => payload.punches.map((punch, index) => "Punch " + String(index + 1) + ": " + String(punch.layerCount) + " layer" + (punch.layerCount === 1 ? "" : "s")).join(" · ");
 
 const buildPaperFrames = (payload) => {
+  const expectedQuestionFrameCount = payload.foldAnimations.length + 2;
+  if (payload.questionSvgs.length !== expectedQuestionFrameCount) {
+    throw new Error("Paper timeline requires Original + one frame per fold + Punch");
+  }
   const frames = [{
     phase: "Start",
     title: "Original sheet",
-    svg: blankSheetSvg(),
-    detail: "Begin with the original sheet before the first fold.",
+    svg: payload.questionSvgs[0] ?? blankSheetSvg(),
+    detail: "Begin with the canonical original sheet before the first fold.",
     stats: "Forward sequence ready · " + String(payload.foldAnimations.length) + " fold" + (payload.foldAnimations.length === 1 ? "" : "s"),
     transition: undefined,
   }];
-  const foldCount = Math.max(0, payload.questionSvgs.length - 1);
+  const foldCount = payload.foldAnimations.length;
   for (let index = 0; index < foldCount; index += 1) {
     frames.push({
       phase: "Forward",
       title: "Fold " + String(index + 1),
-      svg: payload.questionSvgs[index] ?? blankSheetSvg(),
+      svg: payload.questionSvgs[index + 1] ?? blankSheetSvg(),
       detail: "Apply forward fold " + String(index + 1) + " of " + String(foldCount) + ".",
       stats: "Forward folding · " + String(foldCount - index - 1) + " fold" + (foldCount - index - 1 === 1 ? "" : "s") + " remaining before the punch",
       transition: payload.foldAnimations[index] === undefined ? undefined : { animationIndex: index, direction: 1 },

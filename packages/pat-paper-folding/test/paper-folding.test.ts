@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildPaperVisualFoldTransitions,
   generatePaperFoldingQuestion,
+  isSinglePhysicalFoldTransition,
   reflectPoint,
   renderFoldStep,
+  renderOriginalSheet,
   validatePaperFoldingQuestion,
 } from "../src/index.js";
 
@@ -19,6 +21,14 @@ describe("paper folding", () => {
         expect(reflectPoint(reflectPoint(point, line), line)).toEqual(point);
       }
     }
+  });
+
+  it("renders the original square as its own fixed-orientation panel", () => {
+    const svg = renderOriginalSheet();
+    expect(svg).toContain('data-original-sheet="true"');
+    expect(svg).toContain('viewBox="-0.2 -0.2 4.4 4.4"');
+    expect(svg).not.toContain("stroke-dasharray");
+    expect(svg).not.toMatch(/transform\s*=\s*["'][^"']*(?:rotate\s*\(|scale\s*\(\s*-)/iu);
   });
 
   it("renders golden-style layered fold panels over the original dashed square", () => {
@@ -57,10 +67,13 @@ describe("paper folding", () => {
     expect(transitions[0]?.movingPolygons.length).toBeGreaterThan(0);
     expect(transitions[1]?.movingPolygons.length).toBeGreaterThan(0);
     expect(transitions.flatMap(({ movingPolygons }) => movingPolygons).every((polygon) => polygon.length >= 3)).toBe(true);
+    expect(isSinglePhysicalFoldTransition([], folds[0]!)).toBe(true);
+    expect(isSinglePhysicalFoldTransition([folds[0]!], folds[1]!)).toBe(true);
   });
 
-  it("keeps the original dashed reference in every fold and punch frame", () => {
+  it("persists the complete consecutive question sequence without rotating or flipping the page", () => {
     const question = generatePaperFoldingQuestion("fold-render-regression", 4);
+    expect(question.prompt.originalSvg).toContain('data-original-sheet="true"');
     expect(question.prompt.stepSvgs).toHaveLength(question.prompt.folds.length + 1);
     expect(question.choices.every(({ svg }) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => svg.includes('viewBox="-0.2 -0.2 4.4 4.4"'))).toBe(true);
@@ -70,18 +83,33 @@ describe("paper folding", () => {
     expect(question.prompt.stepSvgs.every((svg) => !svg.includes("data-folded-away"))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => !svg.includes("data-fold-id"))).toBe(true);
     expect(question.prompt.stepSvgs.every((svg) => !svg.includes("<line"))).toBe(true);
+    expect([question.prompt.originalSvg, ...question.prompt.stepSvgs].every((svg) =>
+      !/transform\s*=\s*["'][^"']*(?:rotate\s*\(|scale\s*\(\s*-)/iu.test(svg))).toBe(true);
 
+    question.prompt.stepSvgs.slice(0, -1).forEach((svg, index) => {
+      expect(svg).toContain(`<title>Paper folding fold ${index + 1}</title>`);
+    });
     const finalStep = question.prompt.stepSvgs.at(-1)!;
+    expect(finalStep).toContain("<title>Paper folding punch</title>");
     expect(finalStep).toContain("<polygon");
     expect(finalStep).toContain("<circle");
     expect(finalStep).toContain('data-original-position="true"');
+
+    const completed = [] as typeof question.prompt.folds[number][];
+    for (const fold of question.prompt.folds) {
+      expect(isSinglePhysicalFoldTransition(completed, fold)).toBe(true);
+      completed.push(fold);
+    }
+    expect(validatePaperFoldingQuestion(question).checks.find(({ id }) => id === "single-physical-folds")?.passed).toBe(true);
   });
 
   it("generates 2,000 deterministic, uniquely solvable questions", () => {
     for (let index = 0; index < 2_000; index += 1) {
       const band = ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5;
       const question = generatePaperFoldingQuestion(`fold-${index}`, band);
-      expect(validatePaperFoldingQuestion(question).matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      const validation = validatePaperFoldingQuestion(question);
+      expect(validation.matchingChoiceIndices).toEqual([question.correctChoiceIndex]);
+      expect(validation.checks.find(({ id }) => id === "single-physical-folds")?.passed).toBe(true);
       if (index === 0) {
         expect(canonicalStringify(question as unknown as JsonValue)).toBe(
           canonicalStringify(generatePaperFoldingQuestion("fold-0", band) as unknown as JsonValue),

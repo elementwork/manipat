@@ -13,7 +13,12 @@ import {
   signedDistanceFromFold,
   unfoldPunches,
 } from "./fold.js";
-import { renderFoldStep, renderHolePattern } from "./render.js";
+import {
+  isSinglePhysicalFoldTransition,
+  renderFoldStep,
+  renderHolePattern,
+  renderOriginalSheet,
+} from "./render.js";
 import type {
   FoldInstruction,
   FoldState,
@@ -63,6 +68,7 @@ const validFold = (state: FoldState, instruction: FoldInstruction): boolean => {
   const moving = distances.filter((distance) => Math.abs(distance) > 0.1 && Math.sign(distance) === instruction.movingSide).length;
   const stationary = distances.filter((distance) => Math.abs(distance) <= 0.1 || Math.sign(distance) !== instruction.movingSide).length;
   if (moving === 0 || stationary === 0) return false;
+  if (!isSinglePhysicalFoldTransition(state.folds, instruction)) return false;
   const next = applyFold(state, instruction);
   if (next.layers.some(({ currentCenter: [x, y] }) => x < 0.5 || x > 3.5 || y < 0.5 || y > 3.5)) return false;
   return occupiedPositions(next) < occupiedPositions(state);
@@ -247,10 +253,11 @@ export const generatePaperFoldingQuestion = (
     type: "paper-folding",
     seed,
     templateId: `state-valid-${folds.map(({ id }) => id).join("-")}`,
-    templateVersion: 2,
+    templateVersion: 3,
     prompt: {
       folds,
       punches,
+      originalSvg: renderOriginalSheet(),
       stepSvgs: Array.from({ length: folds.length + 1 }, (_, step) => renderFoldStep(folds, punches, step)),
     },
     choices,
@@ -269,7 +276,7 @@ export const generatePaperFoldingQuestion = (
     },
     validation: { passed: false, checks: [] },
     fingerprints: { pattern: correctFingerprint, question: questionFingerprint },
-    metadata: { gridSize: 4, layerCount: 16, foldModel: "state-valid-v2" },
+    metadata: { gridSize: 4, layerCount: 16, foldModel: "state-valid-v3-single-physical-fold" },
   };
   const validation = validatePaperFoldingQuestion(base);
   if (!validation.passed) throw new Error(`Paper folding validation failed: ${validation.checks.filter(({ passed }) => !passed).map(({ id }) => id).join(", ")}`);

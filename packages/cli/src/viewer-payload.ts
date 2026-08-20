@@ -31,8 +31,9 @@ export interface PaperGuidePayload {
   readonly questionId: string;
   readonly category: "paper-folding";
   readonly title: string;
-  /** One self-contained original overview of forward folds and reverse unfolding. */
+  /** One self-contained overview of the canonical forward sequence and reverse solution. */
   readonly overviewSvg: string;
+  /** Fixed-orientation forward frames: Original, Fold 1…N, then Punch. */
   readonly questionSvgs: readonly string[];
   readonly correctSvg: string;
   readonly punches: readonly {
@@ -40,6 +41,7 @@ export interface PaperGuidePayload {
     readonly layerCount: number;
   }[];
   readonly steps: readonly PaperGuideStepPayload[];
+  /** Exactly one hinge animation per forward fold; the same transition is reversed during unfolding. */
   readonly foldAnimations: readonly PaperFoldAnimationPayload[];
 }
 
