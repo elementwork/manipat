@@ -89,6 +89,9 @@ describe("unified question engine and storage", () => {
     expect(html).toContain("page-break-after:always");
     expect(html).toContain('class="question-row"');
     expect(html).toContain('font-family="Arial, Helvetica, sans-serif"');
+    expect(html).toContain(">ORIGINAL</text>");
+    expect(html).toContain(">FOLD 1</text>");
+    expect(html).toContain(">PUNCH</text>");
     expect(html).not.toContain("Review answers");
     expect(html).not.toContain("Timer:");
     expect(html).not.toMatch(/<link|<script[^>]+src=/i);
